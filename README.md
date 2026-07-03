@@ -7,23 +7,41 @@ Author: Julia Steinberg
 
 *Drafted with the assistance of Claude (Anthropic).*
 
-## Repo layout
+This repo is being populated incrementally. The reusable machinery (`utils/`)
+and the truth-direction probing study (`scripts/`) are in place; the worked
+notebooks that exercise each piece are being added — see [Coming soon](#coming-soon).
+
+## What's here
 
 ```
 rl-alignment-repo/
-├── utils/        # Toy MDP, PPO, reward model (Bradley-Terry),
-│                 #   calibration, linear probing
-├── scripts/      # Geometry-of-truth probing experiments (SNR analysis
-│                 #   of truth directions across models/datasets)
-├── notebooks/    # Executed notebooks, one per topic:
-│   ├── tabular_control/      # SARSA vs Q-learning
-│   ├── policy_gradient/      # REINFORCE on gridworld
-│   ├── ppo/                  # PPO + trust region
-│   ├── reward_modeling/      # Bradley-Terry reward models
-│   ├── rlhf_pipeline/        # Full pipeline, KL penalties, hacking
-│   ├── scalable_oversight/   # Weak-to-strong generalization
-│   ├── honesty_empirical/    # Calibration, sycophancy
-│   └── truth_directions/     # Truth-direction probing
-├── artifacts/    # Truth-direction SNR grid figures
-└── docs/
+├── utils/        # From-scratch RL/alignment building blocks:
+│                 #   toy MDP + tabular control, PPO (clipped, trust region),
+│                 #   Bradley-Terry reward model, training loop,
+│                 #   linear probing, calibration (ECE)
+└── scripts/      # Truth-direction SNR study: fetch/generate true-false
+                  #   statement data and measure the signal-to-noise ratio
+                  #   of linear "truth directions" across models and datasets
 ```
+
+- **`utils/`** — core implementations (`toy_mdp.py`, `ppo.py`, `reward_model.py`,
+  `train.py`, `probing.py`, `calibration.py`), each written to stand alone and
+  run on a laptop; paths resolve from the repo root so the code runs wherever
+  it's checked out.
+- **`scripts/`** — geometry-of-truth probing: `make_truth_data.py` builds
+  self-contained true/false datasets, `fetch_geometry_of_truth.py` pulls the
+  Marks & Tegmark (2023) sets, and `snr_grid.py` / `truth_direction_snr.py`
+  compute the truth-direction SNR across models and datasets.
+
+## Coming soon
+
+Worked notebooks built on the `utils/` machinery:
+
+- **tabular control** — SARSA vs Q-learning
+- **policy gradient** — REINFORCE on gridworld
+- **PPO** — clipping and the trust-region view
+- **reward modeling** — Bradley-Terry reward models
+- **RLHF pipeline** — full pipeline, KL penalties, reward hacking
+- **scalable oversight** — weak-to-strong generalization
+- **honesty (empirical)** — calibration and sycophancy
+- **truth directions** — probing write-up with the SNR figures
