@@ -9,3 +9,4 @@ __pycache__/
 data/
 models/
 /notebooks/tabular_control/make_blog_figures.py
+scripts/local/
