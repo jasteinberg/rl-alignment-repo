@@ -4,10 +4,13 @@ Figure: wrong-signed plain steering vs. sign-corrected whitened steering on
 counterfact_true_false / pythia-2.8b. Reads existing artifacts/steer_ckpt/*.json
 only -- NO model, NO GPU.
 
-Panel A: antisymmetric response A(alpha), plain vs whitened, at L28, with the
+Panel A: antisymmetric response A(h), plain vs whitened, at L28, with the
          random-direction null band (mean +/- p95 envelope) shaded.
-Panel B: steering susceptibility chi = dA/dalpha|_0 across depth (L20/24/28),
+Panel B: steering susceptibility chi = dA/dh|_0 across depth (L20/24/28),
          plain vs whitened, with the sign-flip made visible by the zero line.
+
+The steering field is written h in the post; ALPHAS and the "alphas" JSON keys are
+the on-disk data schema and are left as-is.
 
 Drafted with the assistance of Claude (Anthropic).
 """
@@ -26,10 +29,15 @@ DATASET = "counterfact_true_false"
 ALPHAS = [0.5, 1.0, 2.0, 4.0]
 LAYERS = [20, 24, 28]
 PANEL_A_LAYER = 28
+CHI_AGG = os.environ.get("CHI_AGG", "median").lower()   # "median" | "mean"
 
 # physics-paper-ish styling: serif, restrained palette
 rcParams.update({
     "font.family": "serif",
+    "axes.grid": True,
+    "grid.linestyle": ":",
+    "grid.linewidth": 0.6,
+    "grid.alpha": 0.55,
     "font.size": 11,
     "axes.linewidth": 0.8,
     "axes.spines.top": False,
@@ -65,8 +73,23 @@ def chi_origin(vals):
 
 
 def chi_across_seeds(seeds, arm):
+    """Central chi across seeds, plus asymmetric error bars.
+
+    CHI_AGG=median (default) reports the median with inter-quartile bars, matching
+    what the post quotes and what chi_whitening_analysis.py computes. CHI_AGG=mean
+    reports the mean with +/- s.e.m. The two differ materially on the plain arm,
+    whose seed distribution is skewed: at L24 the median is -0.026 and the mean
+    -0.018.
+    """
     chis = [chi_origin([s["alphas"][str(a)][arm]["antisym"] for a in ALPHAS]) for s in seeds]
-    return np.mean(chis), np.std(chis, ddof=1) / np.sqrt(len(chis))
+    chis = np.asarray(chis, float)
+    if CHI_AGG == "mean":
+        mu = float(np.mean(chis))
+        e = float(np.std(chis, ddof=1) / np.sqrt(len(chis)))
+        return mu, (e, e)
+    med = float(np.median(chis))
+    q25, q75 = np.percentile(chis, [25, 75])
+    return med, (float(med - q25), float(q75 - med))
 
 
 fig, (axA, axB) = plt.subplots(1, 2, figsize=(10, 4.2))
@@ -76,11 +99,13 @@ seeds = load_seeds(PANEL_A_LAYER)
 null = load_null(PANEL_A_LAYER)
 a = np.array(ALPHAS)
 
-# null band: mean +/- p95-implied envelope, per alpha (folded to symmetric grey band)
-null_mean = np.array([null["alphas"][str(al)]["antisym_mean"] for al in ALPHAS])
-null_p95 = np.array([null["alphas"][str(al)]["antisym_p95"] for al in ALPHAS])
-axA.fill_between(a, -null_p95, null_p95, color=C_NULL, alpha=0.18,
-                 label="random-direction null (95%)", zorder=1)
+# null band: signed 5th-95th percentiles of the null draws, per alpha. A point outside
+# the band in its own direction is a one-sided rank test at 5% -- the same criterion
+# as the quoted p-values (was +/- p95 of |A|, i.e. a one-sided 2.5% bar).
+null_lo = np.array([np.percentile(null["alphas"][str(al)]["draws"], 5) for al in ALPHAS])
+null_hi = np.array([np.percentile(null["alphas"][str(al)]["draws"], 95) for al in ALPHAS])
+axA.fill_between(a, null_lo, null_hi, color=C_NULL, alpha=0.18,
+                 label="random-direction null (5th–95th pct.)", zorder=1)
 
 for arm, c, lab in [("plain", C_PLAIN, r"plain $\hat\theta\propto\hat\delta$"),
                     ("whitened", C_WHIT, r"whitened $\hat\theta_F\propto\hat\Sigma^{-1}\hat\delta$")]:
@@ -89,8 +114,8 @@ for arm, c, lab in [("plain", C_PLAIN, r"plain $\hat\theta\propto\hat\delta$"),
                  label=lab, zorder=3)
 
 axA.axhline(0, color="k", lw=0.7, zorder=2)
-axA.set_xlabel(r"steering scale $\alpha$  (class-gap units)")
-axA.set_ylabel(r"antisymmetric response $A(\alpha)$")
+axA.set_xlabel(r"steering field $h$  (class-gap units)")
+axA.set_ylabel(r"antisymmetric response $A(h)$")
 axA.set_title(rf"$L={PANEL_A_LAYER}$: plain steers the wrong way", fontsize=11)
 axA.legend(fontsize=8.5, frameon=False, loc="upper left")
 
@@ -99,19 +124,21 @@ x = np.arange(len(LAYERS))
 w = 0.34
 for i, (arm, c, lab) in enumerate([("plain", C_PLAIN, "plain"),
                                     ("whitened", C_WHIT, "whitened")]):
-    means, errs = [], []
+    cent, lo, hi = [], [], []
     for L in LAYERS:
         sd = load_seeds(L)
-        mu, se = chi_across_seeds(sd, arm)
-        means.append(mu); errs.append(se)
-    axB.bar(x + (i - 0.5) * w, means, w, yerr=errs, color=c, alpha=0.85,
+        mu, (elo, ehi) = chi_across_seeds(sd, arm)
+        cent.append(mu); lo.append(elo); hi.append(ehi)
+    axB.bar(x + (i - 0.5) * w, cent, w, yerr=[lo, hi], color=c, alpha=0.85,
             capsize=3, label=lab)
 
 axB.axhline(0, color="k", lw=0.7)
 axB.set_xticks(x)
 axB.set_xticklabels([f"L{L}" for L in LAYERS])
-axB.set_ylabel(r"steering susceptibility $\chi=\mathrm{d}A/\mathrm{d}\alpha|_0$")
-axB.set_title("rank-1 whitening flips the sign at depth", fontsize=11)
+axB.set_ylabel(r"steering susceptibility $\chi=\mathrm{d}A/\mathrm{d}h|_0$")
+axB.set_title("rank-1 whitening flips the sign at depth"
+              + ("  (median, IQR)" if CHI_AGG == "median" else "  (mean, s.e.m.)"),
+              fontsize=11)
 axB.legend(fontsize=9, frameon=False)
 
 fig.suptitle(
