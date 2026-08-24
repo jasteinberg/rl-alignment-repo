@@ -27,10 +27,13 @@ import os, sys, json, gc, argparse, importlib.util
 import numpy as np, pandas as pd, torch
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
 spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
 S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
 
-DATA = os.path.expanduser("~/external/geometry-of-truth/datasets")
+from utils.env import ENV
+
+DATA = ENV.GOT
 ART = os.path.join(REPO, "artifacts")
 DEV = "mps"
 

@@ -12,12 +12,16 @@ Drafted with the assistance of Claude (Anthropic).
 """
 import sys, json, re
 import numpy as np, pandas as pd, torch, os
-sys.path.insert(0, "scripts")
 import importlib.util
-spec = importlib.util.spec_from_file_location("s", "scripts/snr_sweep.py")
+
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
+spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
 S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
 
-D = os.path.expanduser("~/external/geometry-of-truth/datasets")
+from utils.env import ENV
+
+D = ENV.GOT
 MODEL, LAYER = "EleutherAI/pythia-2.8b", 28
 dev = "mps"
 

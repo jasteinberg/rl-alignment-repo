@@ -29,7 +29,9 @@ from sklearn.metrics import roc_auc_score
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
-DATA = Path(os.path.expanduser("~/external/geometry-of-truth/datasets"))
+from utils.env import ENV
+
+DATA = Path(ENV.GOT)
 ART = REPO / "artifacts"
 CKPT = ART / "ckpt"
 

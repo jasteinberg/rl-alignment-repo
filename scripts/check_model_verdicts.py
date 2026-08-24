@@ -12,9 +12,14 @@ import os, sys, importlib.util
 import numpy as np, pandas as pd, torch
 from sklearn.metrics import roc_auc_score
 
-spec = importlib.util.spec_from_file_location("s", "scripts/snr_sweep.py")
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, REPO)
+spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
 S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
-D = os.path.expanduser("~/external/geometry-of-truth/datasets")
+
+from utils.env import ENV
+
+D = ENV.GOT
 dev = "mps"
 
 TEMPLATE = '{stmt} This statement is:'

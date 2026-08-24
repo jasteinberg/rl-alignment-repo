@@ -18,6 +18,9 @@ from dataclasses import dataclass
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 # HF model cache root; override with HF_MODELS_ROOT (default ~/models).
 _MODELS_ROOT = os.environ.get("HF_MODELS_ROOT", os.path.expanduser("~/models"))
+# Third-party datasets checked out outside the repo; override with
+# EXTERNAL_ROOT (default ~/external).
+_EXTERNAL_ROOT = os.environ.get("EXTERNAL_ROOT", os.path.expanduser("~/external"))
 
 
 @dataclass(frozen=True)
@@ -28,6 +31,8 @@ class _Env:
     MODELS    : str = os.path.join(_MODELS_ROOT, "transformers")
     HUB       : str = os.path.join(_MODELS_ROOT, "hub")
     DATA      : str = os.path.join(_REPO_ROOT, "data")
+    EXTERNAL  : str = _EXTERNAL_ROOT
+    GOT       : str = os.path.join(_EXTERNAL_ROOT, "geometry-of-truth", "datasets")
     NOTEBOOKS : str = os.path.join(_REPO_ROOT, "notebooks")
     ARTIFACTS : str = os.path.join(_REPO_ROOT, "artifacts")
 
@@ -47,6 +52,7 @@ class _Env:
         print(f"Repo:      {self.REPO}")
         print(f"Models:    {self.MODELS}")
         print(f"Data:      {self.DATA}")
+        print(f"External:  {self.EXTERNAL}")
         print(f"HF cache:  {self.HF_CACHE}")
 
 
