@@ -32,13 +32,15 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("--models", default="EleutherAI/pythia-2.8b,EleutherAI/pythia-1.4b")
     ap.add_argument("--datasets", default="cities,counterfact_true_false")
-    ap.add_argument("--alphas", default="4,8")
+    ap.add_argument("--alphas", default="0.5,1,2,4")
     ap.add_argument("--n_rand", type=int, default=30, help="TOTAL draws wanted")
     ap.add_argument("--pairs", type=int, default=400)
     ap.add_argument("--pairs_per_seed", type=int, default=250)
     ap.add_argument("--cap", type=int, default=1199)
     ap.add_argument("--bs", type=int, default=16)
+    ap.add_argument("--layers", default="", help="comma list; default all in SEED_PLAN")
     args = ap.parse_args()
+    want = {int(s) for s in args.layers.split(",") if s}
     alphas = [float(a) for a in args.alphas.split(",")]
 
     for mname in [m for m in args.models.split(",") if m]:
@@ -46,6 +48,8 @@ def main():
         dtype = next(model.parameters()).dtype
         nL = model.config.num_hidden_layers
         layers = sorted({max(1, int(round(f * nL))) for f in C2.SEED_PLAN})
+        if want:
+            layers = [L for L in layers if L in want]
         print(f"\n=== {mname} ({nL} layers) -> {layers} ===", flush=True)
 
         for ds in [d for d in args.datasets.split(",") if d]:
@@ -57,8 +61,10 @@ def main():
                 p = C2.null_path(mname, ds, L)
                 cur = json.load(open(p)) if os.path.exists(p) else {"layer": L, "alphas": {}}
                 X = Xs[L].astype(np.float64)
-                th, _, _, _ = C2.fit_dirs(X, y, 0)
-                scale = float(np.std(X @ th))
+                # Scale in class-gap units, matching run_null in steer_confirm2
+                # ("same unit as the theta arms"). Note this is not std(X @ th),
+                # which differs by sigma_along_theta and is layer-dependent.
+                scale = C2.class_gap(X, y)
 
                 with SC.Steerer(model, L) as st:
                     st.set(None, 0, DEV, dtype)
@@ -78,6 +84,22 @@ def main():
                             av, _ = C2.antisym(model, tok, st, r, a, scale,
                                                pairs, base, args.bs, dtype)
                             vals.append(av)
+                            # Checkpoint every 10 draws so a long extension survives
+                            # interruption. Mid-alpha resume reseeds the rng from the
+                            # new len(have) -- draws stay independent; no consumer
+                            # needs draw alignment across alphas (signflip reads the
+                            # per-alpha p95, chi_whitening_analysis the alpha=1 draws).
+                            if len(vals) % 10 == 0:
+                                v = np.array(vals)
+                                cur["alphas"][k] = {
+                                    "antisym_mean": float(v.mean()),
+                                    "antisym_std": float(v.std(ddof=1)),
+                                    "antisym_p95": float(np.percentile(np.abs(v), 95)),
+                                    "n_draws": len(v), "draws": [float(x) for x in v]}
+                                with open(p, "w") as f:
+                                    json.dump(cur, f, indent=2)
+                                print(f"    L{L} a={a}: {len(vals)}/{args.n_rand} draws",
+                                      flush=True)
                         v = np.array(vals)
                         cur["alphas"][k] = {
                             "antisym_mean": float(v.mean()),
