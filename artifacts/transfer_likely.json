@@ -1,0 +1,132 @@
+{
+ "model": "EleutherAI/pythia-2.8b",
+ "note": "AUROC of a direction fitted on `train_on` and evaluated on `eval_on`, at the layer selected for `train_on`",
+ "rows": [
+  {
+   "train_on": "cities",
+   "eval_on": "likely",
+   "layer": 29,
+   "auroc_plain": 0.5592331181977831,
+   "auroc_whitened": 0.5008892517980783
+  },
+  {
+   "train_on": "neg_cities",
+   "eval_on": "likely",
+   "layer": 25,
+   "auroc_plain": 0.4589769689377076,
+   "auroc_whitened": 0.4733056677218376
+  },
+  {
+   "train_on": "larger_than",
+   "eval_on": "likely",
+   "layer": 28,
+   "auroc_plain": 0.5984273106564804,
+   "auroc_whitened": 0.5438417914788426
+  },
+  {
+   "train_on": "smaller_than",
+   "eval_on": "likely",
+   "layer": 31,
+   "auroc_plain": 0.441292602991018,
+   "auroc_whitened": 0.4702072683750741
+  },
+  {
+   "train_on": "cities_cities_conj",
+   "eval_on": "likely",
+   "layer": 26,
+   "auroc_plain": 0.4886746233263609,
+   "auroc_whitened": 0.5637632688672387
+  },
+  {
+   "train_on": "cities_cities_disj",
+   "eval_on": "likely",
+   "layer": 29,
+   "auroc_plain": 0.46499479871589805,
+   "auroc_whitened": 0.48338385476672524
+  },
+  {
+   "train_on": "common_claim_true_false",
+   "eval_on": "likely",
+   "layer": 31,
+   "auroc_plain": 0.4552074361584323,
+   "auroc_whitened": 0.451505016722408
+  },
+  {
+   "train_on": "companies_true_false",
+   "eval_on": "likely",
+   "layer": 31,
+   "auroc_plain": 0.5655082157917697,
+   "auroc_whitened": 0.4888424066844889
+  },
+  {
+   "train_on": "counterfact_true_false",
+   "eval_on": "likely",
+   "layer": 32,
+   "auroc_plain": 0.48037493987763,
+   "auroc_whitened": 0.519289493406114
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "cities",
+   "layer": 12,
+   "auroc_plain": 0.5141329515329807,
+   "auroc_whitened": 0.40668448898781895
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "neg_cities",
+   "layer": 12,
+   "auroc_plain": 0.5224550060961287,
+   "auroc_whitened": 0.6032706569277748
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "larger_than",
+   "layer": 12,
+   "auroc_plain": 0.5364593237212112,
+   "auroc_whitened": 0.3891231641704232
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "smaller_than",
+   "layer": 12,
+   "auroc_plain": 0.4317065804633058,
+   "auroc_whitened": 0.6033936980570688
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "cities_cities_conj",
+   "layer": 12,
+   "auroc_plain": 0.4750506146463686,
+   "auroc_whitened": 0.4652744376461113
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "cities_cities_disj",
+   "layer": 12,
+   "auroc_plain": 0.5004530150669456,
+   "auroc_whitened": 0.49487142201988793
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "common_claim_true_false",
+   "layer": 12,
+   "auroc_plain": 0.5002852317088177,
+   "auroc_whitened": 0.49392064965716265
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "companies_true_false",
+   "layer": 12,
+   "auroc_plain": 0.48716457310320915,
+   "auroc_whitened": 0.47033030950436805
+  },
+  {
+   "train_on": "likely",
+   "eval_on": "counterfact_true_false",
+   "layer": 12,
+   "auroc_plain": 0.4925783827921387,
+   "auroc_whitened": 0.47361886332367653
+  }
+ ]
+}
