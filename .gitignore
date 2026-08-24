@@ -11,3 +11,9 @@ models/
 /notebooks/tabular_control/make_blog_figures.py
 scripts/local/
 next-post.md
+
+# parked: part-2 and burial artifacts
+# Provenance and the commit message for restoring these: writing/notes/parked-part2-artifacts.md
+artifacts/steer_g_arm_counterfact_L28*.json
+artifacts/olmo_checkpoint_sweep.json
+artifacts/olmo_goNogo.json
