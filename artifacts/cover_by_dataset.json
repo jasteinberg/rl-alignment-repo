@@ -1,0 +1,230 @@
+{
+  "config": {
+    "model": "EleutherAI/pythia-2.8b",
+    "datasets": [
+      "counterfact_true_false",
+      "cities",
+      "larger_than",
+      "sp_en_trans"
+    ],
+    "ns": [
+      100,
+      200,
+      400,
+      800,
+      1200
+    ],
+    "n_rep": 8,
+    "note": "in-sample shuffled-label excess"
+  },
+  "results": {
+    "counterfact_true_false": {
+      "best_layer": 32,
+      "N_total": 3000,
+      "spectrum": {
+        "participation_ratio": 30.33982742885716,
+        "lambda1_over_trace": 0.10938784933002811,
+        "kappa_12": 1.2660696946097796,
+        "d_model": 2560
+      },
+      "curve": [
+        {
+          "N": 100,
+          "N_over_2d": 0.01953125,
+          "excess_mean": 0.28209719307023073,
+          "excess_sd": 0.027548976765292808,
+          "true_auroc_mean": 0.820751947032641,
+          "n_rep": 8
+        },
+        {
+          "N": 200,
+          "N_over_2d": 0.0390625,
+          "excess_mean": 0.21705362061141592,
+          "excess_sd": 0.019667437064240966,
+          "true_auroc_mean": 0.7550788189716109,
+          "n_rep": 8
+        },
+        {
+          "N": 400,
+          "N_over_2d": 0.078125,
+          "excess_mean": 0.15089926198761855,
+          "excess_sd": 0.024435903181299984,
+          "true_auroc_mean": 0.6908953339221563,
+          "n_rep": 8
+        },
+        {
+          "N": 800,
+          "N_over_2d": 0.15625,
+          "excess_mean": 0.12187141757370211,
+          "excess_sd": 0.015253417607243467,
+          "true_auroc_mean": 0.6735312578473405,
+          "n_rep": 8
+        },
+        {
+          "N": 1200,
+          "N_over_2d": 0.234375,
+          "excess_mean": 0.09789788274751444,
+          "excess_sd": 0.01503110462100275,
+          "true_auroc_mean": 0.6385293161151453,
+          "n_rep": 8
+        }
+      ],
+      "fit": {
+        "amplitude": 0.05364390984773339,
+        "exponent": -0.42302257308931124,
+        "r2": 0.9944615869352897,
+        "n_points": 5
+      }
+    },
+    "cities": {
+      "best_layer": 29,
+      "N_total": 1496,
+      "spectrum": {
+        "participation_ratio": 34.6072873462578,
+        "lambda1_over_trace": 0.11056516935041184,
+        "kappa_12": 1.799032620522995,
+        "d_model": 2560
+      },
+      "curve": [
+        {
+          "N": 100,
+          "N_over_2d": 0.01953125,
+          "excess_mean": 0.3047002172103198,
+          "excess_sd": 0.0364119510312682,
+          "true_auroc_mean": 0.9847476224663939,
+          "n_rep": 8
+        },
+        {
+          "N": 200,
+          "N_over_2d": 0.0390625,
+          "excess_mean": 0.23347293474587746,
+          "excess_sd": 0.01996413595436226,
+          "true_auroc_mean": 0.9816966258342933,
+          "n_rep": 8
+        },
+        {
+          "N": 400,
+          "N_over_2d": 0.078125,
+          "excess_mean": 0.1634889011900833,
+          "excess_sd": 0.014745508345108606,
+          "true_auroc_mean": 0.9775817932071396,
+          "n_rep": 8
+        },
+        {
+          "N": 800,
+          "N_over_2d": 0.15625,
+          "excess_mean": 0.12274839688976709,
+          "excess_sd": 0.016251931054649525,
+          "true_auroc_mean": 0.9799919870034829,
+          "n_rep": 8
+        },
+        {
+          "N": 1200,
+          "N_over_2d": 0.234375,
+          "excess_mean": 0.09738338002382559,
+          "excess_sd": 0.015180940943202673,
+          "true_auroc_mean": 0.9783869103776648,
+          "n_rep": 8
+        }
+      ],
+      "fit": {
+        "amplitude": 0.05121609699593747,
+        "exponent": -0.4585887815949255,
+        "r2": 0.9971187035801803,
+        "n_points": 5
+      }
+    },
+    "larger_than": {
+      "best_layer": 28,
+      "N_total": 1980,
+      "spectrum": {
+        "participation_ratio": 8.912029857138375,
+        "lambda1_over_trace": 0.2800517370197168,
+        "kappa_12": 2.3742565696389795,
+        "d_model": 2560
+      },
+      "curve": [
+        {
+          "N": 100,
+          "N_over_2d": 0.01953125,
+          "excess_mean": 0.18030727946705416,
+          "excess_sd": 0.03677123313401506,
+          "true_auroc_mean": 0.9583233957309475,
+          "n_rep": 8
+        },
+        {
+          "N": 200,
+          "N_over_2d": 0.0390625,
+          "excess_mean": 0.12690453747436076,
+          "excess_sd": 0.016829342830007234,
+          "true_auroc_mean": 0.9412646425091076,
+          "n_rep": 8
+        },
+        {
+          "N": 400,
+          "N_over_2d": 0.078125,
+          "excess_mean": 0.09219265490632075,
+          "excess_sd": 0.014700310090157334,
+          "true_auroc_mean": 0.9410809375005328,
+          "n_rep": 8
+        },
+        {
+          "N": 800,
+          "N_over_2d": 0.15625,
+          "excess_mean": 0.06803009551720804,
+          "excess_sd": 0.016954506559823102,
+          "true_auroc_mean": 0.9430405716408949,
+          "n_rep": 8
+        },
+        {
+          "N": 1200,
+          "N_over_2d": 0.234375,
+          "excess_mean": 0.05431283211809598,
+          "excess_sd": 0.012660481196640318,
+          "true_auroc_mean": 0.9423820449656194,
+          "n_rep": 8
+        }
+      ],
+      "fit": {
+        "amplitude": 0.02758538480148305,
+        "exponent": -0.47489850761481867,
+        "r2": 0.999071634674305,
+        "n_points": 5
+      }
+    },
+    "sp_en_trans": {
+      "best_layer": 27,
+      "N_total": 354,
+      "spectrum": {
+        "participation_ratio": 16.8112309066097,
+        "lambda1_over_trace": 0.23136586078690596,
+        "kappa_12": 6.637138673142779,
+        "d_model": 2560
+      },
+      "curve": [
+        {
+          "N": 100,
+          "N_over_2d": 0.01953125,
+          "excess_mean": 0.32567111041594327,
+          "excess_sd": 0.09851597724861753,
+          "true_auroc_mean": 0.9428863575167914,
+          "n_rep": 8
+        },
+        {
+          "N": 200,
+          "N_over_2d": 0.0390625,
+          "excess_mean": 0.22393501702706076,
+          "excess_sd": 0.06905806702402877,
+          "true_auroc_mean": 0.9465100047677425,
+          "n_rep": 8
+        }
+      ],
+      "fit": {
+        "amplitude": 0.03883289929118525,
+        "exponent": -0.5403356049928855,
+        "r2": 1.0,
+        "n_points": 2
+      }
+    }
+  }
+}
