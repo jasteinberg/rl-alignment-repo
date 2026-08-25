@@ -27,7 +27,12 @@ OUT = Path(os.environ.get("FIGURE_DIR", REPO / "figures")) / "truth_depth_arms.p
 
 MODEL = "EleutherAI/pythia-2.8b"
 PANELS = [("counterfact_true_false", "`counterfact`"), ("cities", "`cities`")]
-C_PLAIN, C_WHIT = "#c0392b", "#2E6DA4"
+C_PLAIN, C_WHIT, C_PERP = "#c0392b", "#2E6DA4", "#d68910"
+
+# The rank-one corrected arm (project v_1 out of the estimator) is measured on a
+# six-layer grid in the rogue-dimension sweep, not at every layer, so it is drawn
+# as points rather than a curve.
+ROGUE = Path(os.environ.get("ROGUE_JSON", REPO / "artifacts" / "rogue_dimension.json"))
 
 rcParams.update({
     "font.family": "serif",
@@ -43,6 +48,14 @@ rcParams.update({
 })
 
 S = json.load(open(SWEEP))
+R = json.load(open(ROGUE))
+
+
+def perp(dataset):
+    node = R[dataset]
+    Ls = sorted(node, key=int)
+    return (np.array([float(L) for L in Ls]),
+            np.array([node[L]["auroc"]["theta_perp"] for L in Ls]))
 
 
 def arms(dataset):
@@ -78,6 +91,9 @@ for ax, (ds, label) in zip(axes, PANELS):
             zorder=3, label=r"mass-mean $\hat\theta$")
     ax.plot(L[sel], whit[sel], color=C_WHIT, lw=2.0, marker="s", ms=3.2,
             zorder=3, label=r"whitened $\hat\theta_\mathrm{F}$")
+    Lp, ap = perp(ds)
+    ax.plot(Lp, ap, color=C_PERP, lw=0, marker="*", ms=13, mec="white",
+            mew=0.6, zorder=4, label=r"rank-one corrected $\hat\theta_\perp$")
     ax.axhline(0.5, color="#bdc3c7", lw=0.8, zorder=1)
 
     for arm, color in [(plain, C_PLAIN), (whit, C_WHIT)]:
