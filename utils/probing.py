@@ -44,7 +44,10 @@ def residual_activations(model, tok, statements: Sequence[str], layer: int,
     """
     Residual-stream activations at `layer` -> [N, d_model].
     hidden_states index: 0 = embeddings, L = output of block L (12-layer GPT-2
-    -> layers 0..12). token="last" takes the last non-pad position.
+    -> layers 0..12). The last entry has already passed through the model's
+    final norm, so it is not comparable to the others in scale -- verified by
+    lm_head(hidden_states[-1]) reproducing the returned logits.
+    token="last" takes the last non-pad position.
     """
     device = device or get_device()
     out = []

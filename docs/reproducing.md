@@ -27,6 +27,18 @@ derivations behind them live in `docs/` (`policy_gradient.md`, `ppo.md`,
    additionally pulls `pythia-70m … pythia-1.4b` — several GB — and is off by
    default.
 
+## Why activations come from raw `transformers`
+
+Activations here are read from `output_hidden_states` on a plain HuggingFace
+forward pass rather than through TransformerLens, which the interpretability
+repo uses. Two reasons. TransformerLens supports no OLMo checkpoint, and the
+OLMo-2-1B arm is what carries the cross-family transfer result, so one
+extraction path covering every model was preferable to two. And
+`HookedTransformer.from_pretrained` folds LayerNorm and centers the writing and
+unembedding weights by default, which leaves an equivalent model with different
+parameters — not what you want underneath claims about residual-stream geometry
+and activation norms across depth.
+
 ## Paths
 
 Notebooks locate the repo root by walking up to the directory containing
