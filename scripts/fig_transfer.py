@@ -81,7 +81,7 @@ cb = fig.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 cb.set_label("held-out AUROC", fontsize=9.5)
 cb.ax.axhline(0.5, color="#2c3e50", lw=1.0)
 
-ax.set_title(f"Transfer is polarity-structured ({MODEL.split('/')[-1]})",
+ax.set_title(f"Transfer is polarity- and family-structured ({MODEL.split('/')[-1]})",
              fontsize=11, pad=10)
 
 fig.tight_layout()
