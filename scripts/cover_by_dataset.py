@@ -32,6 +32,7 @@ Drafted with the assistance of Claude (Anthropic).
 """
 import gc
 import json
+import math
 import os
 import sys
 import importlib.util
@@ -116,15 +117,29 @@ def excess_curve(X, y, d_model, ns, seed=0):
 
 
 def powerlaw_fit(rows):
-    """OLS and inverse-variance-weighted LS of log(excess) on log(N/2d)."""
+    """OLS and inverse-variance-weighted LS of log(excess) on log(N/2d).
+
+    Also refits over truncated N windows. The fitted exponent depends on how
+    far up in N the grid reaches, so comparing datasets that stop at different
+    N compares windows, not datasets.
+    """
+    def ols(rr):
+        x = np.log(np.array([r["N_over_2d"] for r in rr]))
+        yv = np.log(np.array([max(r["excess_mean"], 1e-6) for r in rr]))
+        n = len(x)
+        b, loga = np.polyfit(x, yv, 1)
+        resid = yv - (loga + b * x)
+        sxx = ((x - x.mean()) ** 2).sum()
+        se = float(np.sqrt((resid ** 2).sum() / max(n - 2, 1) / sxx)) if sxx > 0 else float("nan")
+        ss = 1.0 - resid.var() / yv.var() if yv.var() > 0 else float("nan")
+        return float(np.exp(loga)), float(b), se, float(ss), n
+
+    a, b, se, ss, n = ols(rows)
+    out = {"amplitude": a, "exponent": b, "exponent_se": se,
+           "r2": ss, "n_points": n}
+    # log-space sd is sd/mean to first order; weight by its inverse square.
     x = np.log(np.array([r["N_over_2d"] for r in rows]))
     yv = np.log(np.array([max(r["excess_mean"], 1e-6) for r in rows]))
-    b, loga = np.polyfit(x, yv, 1)
-    resid = yv - (loga + b * x)
-    ss = 1.0 - resid.var() / yv.var() if yv.var() > 0 else float("nan")
-    out = {"amplitude": float(np.exp(loga)), "exponent": float(b),
-           "r2": float(ss), "n_points": int(len(rows))}
-    # log-space sd is sd/mean to first order; weight by its inverse square.
     rel = np.array([max(r["excess_sd"], 1e-9) / max(r["excess_mean"], 1e-9)
                     / max(np.sqrt(r["n_rep"]), 1.0) for r in rows])
     w = 1.0 / rel ** 2
@@ -132,7 +147,21 @@ def powerlaw_fit(rows):
         bw, logaw = np.polyfit(x, yv, 1, w=np.sqrt(w))
         out["amplitude_wls"] = float(np.exp(logaw))
         out["exponent_wls"] = float(bw)
+    out["windows"] = {}
+    for cap in (400, 1500):
+        sub = [r for r in rows if r["N"] <= cap]
+        if len(sub) >= 3:
+            aa, bb, ss_e, rr2, nn = ols(sub)
+            out["windows"][f"N<={cap}"] = {"amplitude": aa, "exponent": bb,
+                                           "exponent_se": ss_e, "n_points": nn}
     return out
+
+
+def collapse(rows, pr):
+    """C = excess * sqrt(N / PR): the effective-dimension collapse constant."""
+    return [{"N": r["N"], "C": float(r["excess_mean"] * math.sqrt(r["N"] / pr)),
+             "C_at_N": float(r["excess_mean"] * math.sqrt(r["N"] / r["pr_at_N"]))}
+            for r in rows]
 
 
 def main():
@@ -158,7 +187,8 @@ def main():
             out["results"][ds] = {"best_layer": int(best), "N_total": int(len(y)),
                                   "ns": ns,
                                   "spectrum": spectrum(X, y), "curve": rows,
-                                  "fit": fit}
+                                  "fit": fit,
+                                  "collapse": collapse(rows, spectrum(X, y)["participation_ratio"])}
             print(f"   fit a={fit['amplitude']:.4f} b={fit['exponent']:+.3f} "
                   f"R2={fit['r2']:.3f}  PR={out['results'][ds]['spectrum']['participation_ratio']:.1f}",
                   flush=True)
@@ -179,5 +209,26 @@ def main():
         print(f"  -> wrote {OUT}", flush=True)
 
 
+def refit():
+    """Recompute fits and collapse from the stored curves, no model needed."""
+    out = json.loads(OUT.read_text())
+    for ds, v in out["results"].items():
+        if "curve" not in v:
+            continue
+        v["fit"] = powerlaw_fit(v["curve"])
+        v["collapse"] = collapse(v["curve"], v["spectrum"]["participation_ratio"])
+        f = v["fit"]
+        print(f"{ds:24s} b={f['exponent']:+.3f}±{f['exponent_se']:.3f} "
+              f"a={f['amplitude']:.4f} R2={f['r2']:.3f}", flush=True)
+        for w, wv in f["windows"].items():
+            print(f"{'':24s}   {w:<8s} b={wv['exponent']:+.3f}±{wv['exponent_se']:.3f} "
+                  f"({wv['n_points']} pts)", flush=True)
+    OUT.write_text(json.dumps(out, indent=2))
+    print(f"-> rewrote {OUT}")
+
+
 if __name__ == "__main__":
-    main()
+    if "--refit" in sys.argv:
+        refit()
+    else:
+        main()
