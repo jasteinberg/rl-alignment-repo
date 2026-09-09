@@ -72,10 +72,17 @@ axL.text(0.77, 0.145, "false completion", ha="center", fontsize=9, color=C_FALSE
 arrow(axL, (0.48, 0.54), (0.62, 0.72), color=C_TRUE)
 arrow(axL, (0.48, 0.46), (0.62, 0.28), color=C_FALSE)
 
-axL.text(0.55, 0.665, r"$\log P_{\mathrm{true}}$", fontsize=10, color=C_TRUE,
-         ha="center", rotation=22)
-axL.text(0.55, 0.32, r"$\log P_{\mathrm{false}}$", fontsize=10, color=C_FALSE,
-         ha="center", rotation=-22)
+# label each arrow parallel to it: rotation is given in DATA coordinates and
+# transform_rotates_text makes matplotlib apply the axes aspect, so the text
+# stays parallel to the arrow however the figure is shaped.
+import math as _m
+_ang = _m.degrees(_m.atan2(0.72 - 0.54, 0.62 - 0.48))
+axL.text(0.525, 0.652, r"$\log P_{\mathrm{true}}$", fontsize=10, color=C_TRUE,
+         ha="center", va="center", rotation=_ang, rotation_mode="anchor",
+         transform_rotates_text=True)
+axL.text(0.512, 0.332, r"$\log P_{\mathrm{false}}$", fontsize=10, color=C_FALSE,
+         ha="center", va="center", rotation=-_ang, rotation_mode="anchor",
+         transform_rotates_text=True)
 
 axL.text(0.5, 0.02,
          r"$\ell(x) = \log P_{\mathrm{true}} - \log P_{\mathrm{false}}$"
