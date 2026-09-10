@@ -90,7 +90,7 @@ for ax, (dataset, title, layers) in zip(axes, PANELS):
 axes[0].set_ylabel(r"steering susceptibility $\chi=\mathrm{d}A/\mathrm{d}h|_0$")
 axes[0].legend(frameon=False, fontsize=9.5)
 fig.suptitle(
-    "pythia-2.8b: the causal direction is set by the presence of a rogue dimension",
+    "pythia-2.8b: the causal direction is set by the presence or absence of a rogue dimension",
     fontsize=11.5, y=1.02)
 fig.tight_layout()
 OUT.parent.mkdir(parents=True, exist_ok=True)
