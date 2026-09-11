@@ -16,3 +16,11 @@ next-post.md
 # Provenance and the commit message for restoring these: writing/notes/parked-part2-artifacts.md
 artifacts/steer_g_arm_counterfact_L28*.json
 artifacts/olmo_checkpoint_sweep.json
+
+# retired July-era scripts: their untracked outputs (scripts removed from the tip)
+artifacts/check_mahalanobis.json
+artifacts/steer_layer_sweep.json
+artifacts/steer_ckpt_sigma_units/
+artifacts/snr_grid.csv
+artifacts/grid_*.png
+artifacts/truth_snr_*.png
