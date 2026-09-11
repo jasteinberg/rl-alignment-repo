@@ -166,7 +166,7 @@ def main():
 
     with open(args.out, "w") as f:
         json.dump({"config": {"seed": args.seed, "cap": args.cap,
-                              "selection": "Sun et al. |x|>100 and >1000x median |x|"},
+                              "selection": "Sun et al. |x|>100 and >100x median |x| (relaxed from their 1000x; see truthlib.estimators.massive_mask)"},
                    "results": results}, f, indent=1)
     print(f"\nwrote {args.out}", flush=True)
 

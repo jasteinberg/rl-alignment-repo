@@ -2,7 +2,7 @@
  "config": {
   "seed": 0,
   "cap": 1199,
-  "selection": "Sun et al. |x|>100 and >1000x median |x|"
+  "selection": "Sun et al. |x|>100 and >100x median |x| (relaxed from their 1000x; see truthlib.estimators.massive_mask)"
  },
  "results": {
   "pythia-2.8b__counterfact_true_false": {
