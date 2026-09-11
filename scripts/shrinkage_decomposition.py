@@ -30,29 +30,11 @@ import os
 
 import numpy as np
 from sklearn.covariance import LedoitWolf
+from truthlib.estimators import split_indices, within_class_center
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(REPO, "artifacts", "act_cache")
 OUT = os.path.join(REPO, "artifacts", "shrinkage_decomposition.json")
-
-
-def split_indices(y, frac=0.5, seed=0):
-    """Class-stratified train/test split -- identical to snr_sweep.split_indices."""
-    rng = np.random.default_rng(seed)
-    tr, te = [], []
-    for lab in (0, 1):
-        idx = np.where(y == lab)[0]
-        rng.shuffle(idx)
-        k = int(round(frac * len(idx)))
-        tr.append(idx[:k]); te.append(idx[k:])
-    return np.concatenate(tr), np.concatenate(te)
-
-
-def within_class_center(X, y):
-    Xc = X.copy()
-    for lab in (0, 1):
-        Xc[y == lab] = X[y == lab] - X[y == lab].mean(0)
-    return Xc
 
 
 def lw_parts(Xc):
