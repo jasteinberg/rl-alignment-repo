@@ -134,3 +134,64 @@ def chi_origin(alphas, values):
     a = np.array(alphas, dtype=float)
     v = np.array(values, dtype=float)
     return float((a * v).sum() / (a * a).sum())
+
+
+# ---- evaluation and geometry (moved from snr_sweep / geometry_observables) -------
+def accuracy_midpoint(z, y):
+    """Threshold at the midpoint of the class means (the mass-mean rule)."""
+    thr = 0.5 * (z[y == 1].mean() + z[y == 0].mean())
+    pred = (z > thr).astype(int)
+    if pred.mean() and (pred == y).mean() < 0.5:
+        pred = 1 - pred          # orientation is arbitrary; take the better sign
+    return float((pred == y).mean())
+
+
+def evaluate_direction(theta, X, y):
+    z = X @ theta
+    return {"auroc": auroc(z, y), "d_prime": d_prime(z, y),
+            "acc": accuracy_midpoint(z, y)}
+
+
+def observables(X, y, shrink=True):
+    """Full-set within-class geometry at one layer (geometry_observables.json).
+
+    C-hat here is np.cov (divides by N-1); every ratio reported is invariant.
+    """
+    d = X.shape[1]
+    delta = X[y == 1].mean(0) - X[y == 0].mean(0)
+    th = delta / np.linalg.norm(delta)
+
+    Xc = within_class_center(X, y)
+    C = np.cov(Xc, rowvar=False)
+    w, V = np.linalg.eigh(C)
+    w, V = w[::-1], V[:, ::-1]
+    v1 = V[:, 0]
+
+    PR = float((w.sum() ** 2) / (w ** 2).sum())
+
+    p = X @ th
+    p1, p0 = p[y == 1], p[y == 0]
+    d_mm = float(abs(p1.mean() - p0.mean()) /
+                 np.sqrt(0.5 * (p1.var(ddof=1) + p0.var(ddof=1))))
+
+    # optimal linear separation, shrunk inverse (raw C is singular when N < d)
+    if shrink:
+        P = LedoitWolf(assume_centered=True).fit(Xc).precision_
+        d_maha = float(np.sqrt(max(delta @ P @ delta, 0.0)))
+    else:
+        d_maha = float("nan")
+
+    return {
+        "d_model": int(d), "n": int(len(y)),
+        "PR": PR, "PR_over_d": PR / d,
+        "lambda1_over_trace": float(w[0] / w.sum()),
+        "lambda1_over_lambda2": float(w[0] / w[1]),
+        "cos_theta_v1": float(abs(th @ v1)),
+        "d_mass_mean": d_mm,
+        "d_mahalanobis": d_maha,
+        "hidden_signal_ratio": d_maha / d_mm if d_mm > 0 else float("nan"),
+        "var_along_theta": float(p.var(ddof=1)),
+        "delta_norm": float(np.linalg.norm(delta)),
+        "sqrt_trace_Sigma": float(np.sqrt(w.sum())),
+        "theta": th.astype(np.float32).tolist(),
+    }
