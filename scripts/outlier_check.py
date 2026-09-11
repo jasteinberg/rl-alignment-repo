@@ -31,75 +31,12 @@ import os
 
 import numpy as np
 from sklearn.covariance import LedoitWolf
+from truthlib.estimators import (split_indices, within_class_center, d_prime,
+                                 mass_mean, fisher, massive_mask)
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(REPO, "artifacts", "act_cache")
 OUT = os.path.join(REPO, "artifacts", "outlier_check.json")
-
-
-def split_indices(y, frac=0.5, seed=0):
-    """Identical to snr_sweep.split_indices."""
-    rng = np.random.default_rng(seed)
-    tr, te = [], []
-    for lab in (0, 1):
-        idx = np.where(y == lab)[0]
-        rng.shuffle(idx)
-        k = int(round(frac * len(idx)))
-        tr.append(idx[:k]); te.append(idx[k:])
-    return np.concatenate(tr), np.concatenate(te)
-
-
-def within_class_center(X, y):
-    Xc = X.copy()
-    for lab in (0, 1):
-        Xc[y == lab] = X[y == lab] - X[y == lab].mean(0)
-    return Xc
-
-
-def d_prime(z, y):
-    a, b = z[y == 1], z[y == 0]
-    return float(abs(a.mean() - b.mean()) /
-                 np.sqrt(0.5 * (a.var(ddof=1) + b.var(ddof=1))))
-
-
-def mass_mean(X, y):
-    d = X[y == 1].mean(0) - X[y == 0].mean(0)
-    return d / np.linalg.norm(d)
-
-
-def fisher(X, y):
-    P = LedoitWolf(assume_centered=True).fit(within_class_center(X, y)).precision_
-    t = P @ (X[y == 1].mean(0) - X[y == 0].mean(0))
-    return t / np.linalg.norm(t)
-
-
-def massive_activation_mask(X, mag=100.0, rel=100.0, frac=0.5):
-    """Flag examples that LACK the near-universal massive activation.
-
-    Sun et al. identify a massive COORDINATE by its typical magnitude. Their
-    literal constants are >100 absolute and >1000x the median activation; the
-    relative factor is relaxed to 100x here because on pythia-2.8b counterfact
-    the dominant coordinate runs 1456-1693x the median at L8-L20 but only 564-587x
-    at L24-L28, so the literal 1000x silently stops firing at exactly the layers
-    the post quotes. Every value in between gives the same flagged set, so the
-    constant is not doing any of the work: at 100x the count is 11 at all six
-    layers, and it is the SAME 11.
-
-    A massive coordinate is near-constant across examples, so it contributes
-    almost nothing to the within-class covariance -- except through the examples
-    where it fails to appear. Those are what this flags: |x_ij - med_j| >
-    frac * |med_j| for some massive j.
-
-    Never references v1, the class means, or the labels.
-    """
-    A = np.abs(X)
-    med_all = float(np.median(A))
-    med_j = np.median(X, axis=0)
-    massive = (np.abs(med_j) > mag) & (np.abs(med_j) > rel * med_all)
-    if not massive.any():
-        return np.zeros(len(X), bool), med_all, massive
-    dev = np.abs(X[:, massive] - med_j[massive]) > frac * np.abs(med_j[massive])
-    return dev.any(1), med_all, massive
 
 
 def v1_mask(X, y, zmax=4.0):
@@ -195,7 +132,7 @@ def main():
             per_layer = {}
             for L in layers:
                 X = z[f"L{L}"].astype(np.float64)
-                mass, med, hit = massive_activation_mask(X)
+                mass, med, hit = massive_mask(X)
                 circ = v1_mask(X, y)
                 inter = int((mass & circ).sum())
                 per_layer[str(L)] = {
