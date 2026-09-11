@@ -35,16 +35,14 @@ import json
 import math
 import os
 import sys
-import importlib.util
+from truthlib import acts, data
+from truthlib import estimators as est
 from pathlib import Path
 
 import numpy as np
 import torch
 
 REPO = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("s", REPO / "scripts" / "snr_sweep.py")
-S = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(S)
 
 MODEL = os.environ.get("COVER_MODEL", "EleutherAI/pythia-2.8b")
 DATASETS = ["counterfact_true_false", "cities", "larger_than", "sp_en_trans"]
@@ -101,10 +99,10 @@ def excess_curve(X, y, d_model, ns, seed=0):
                 spec_at_N = spectrum(Xs, ys)
                 first = False
             ysh = rng.permutation(ys)
-            th = S.mass_mean_direction(Xs, ysh)
-            exc.append(S.evaluate_direction(th, Xs, ysh)["auroc"] - 0.5)
-            tht = S.mass_mean_direction(Xs, ys)
-            tru.append(S.evaluate_direction(tht, Xs, ys)["auroc"])
+            th = est.mass_mean(Xs, ysh)
+            exc.append(est.evaluate_direction(th, Xs, ysh)["auroc"] - 0.5)
+            tht = est.mass_mean(Xs, ys)
+            tru.append(est.evaluate_direction(tht, Xs, ys)["auroc"])
         rows.append({"N": int(N), "N_over_2d": float(N / (2 * d_model)),
                      "excess_mean": float(np.mean(exc)),
                      "excess_sd": float(np.std(exc, ddof=1)),
@@ -165,7 +163,7 @@ def collapse(rows, pr):
 
 
 def main():
-    tok, model = S.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
+    tok, model = acts.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
     out = {"config": {"model": MODEL, "datasets": DATASETS,
                       "n_min": N_MIN, "n_pts": N_PTS, "cap": CAP,
                       "n_rep": N_REP,
@@ -175,9 +173,9 @@ def main():
     for ds in DATASETS:
         try:
             best = SWEEP["models"][MODEL]["datasets"][ds]["best_layer"]
-            stmts, y = S.load_dataset(ds, cap=CAP, seed=0)
+            stmts, y = data.load_dataset(ds, cap=CAP, seed=0)
             print(f"[{ds}] N={len(y)} best_layer={best}", flush=True)
-            A = S.extract_all_layers(stmts, tok, model, DEV, 16)
+            A = acts.extract_all_layers(stmts, tok, model, DEV, 16)
             X = A[best].astype(np.float64)
             d_model = X.shape[1]
             ns = grid_for(len(y))

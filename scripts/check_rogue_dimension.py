@@ -29,13 +29,12 @@ That would be internally contradictory, and would rescue the original claim.
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import os, json, gc, argparse, importlib.util
+import os, json, gc, argparse
 import numpy as np, torch
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-spec = importlib.util.spec_from_file_location("c2", os.path.join(REPO, "scripts/steer_confirm2.py"))
-C2 = importlib.util.module_from_spec(spec); spec.loader.exec_module(C2)
-S, SC = C2.S, C2.SC
+from truthlib import acts, data, steering
+from truthlib import estimators as est
 ART, DEV = os.path.join(REPO, "artifacts"), "mps"
 
 
@@ -63,24 +62,24 @@ def spectrum(X, y):
 
 def build_arms(X, y, seed=0):
     """theta, v1 (label-free), theta_perp (after removing v1), random."""
-    tr, te = C2.S.split_indices(y, seed=seed)
+    tr, te = est.split_indices(y, seed=seed)
     _, v1, _ = spectrum(X[tr], y[tr])
 
-    th = S.mass_mean_direction(X[tr], y[tr])
-    if S.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
+    th = est.mass_mean(X[tr], y[tr])
+    if est.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
 
     Xp = X - np.outer(X @ v1, v1)          # project out the rogue dimension
-    thp = S.mass_mean_direction(Xp[tr], y[tr])
-    if S.auroc(Xp[tr] @ thp, y[tr]) < 0.5: thp = -thp
+    thp = est.mass_mean(Xp[tr], y[tr])
+    if est.auroc(Xp[tr] @ thp, y[tr]) < 0.5: thp = -thp
 
     rng = np.random.default_rng(4242 + seed)
     r = rng.standard_normal(X.shape[1]); r /= np.linalg.norm(r)
 
     # orient v1 for steering the same way theta is oriented
-    if S.auroc(X[tr] @ v1, y[tr]) < 0.5: v1 = -v1
+    if est.auroc(X[tr] @ v1, y[tr]) < 0.5: v1 = -v1
 
     arms = {"theta": (th, X), "v1": (v1, X), "theta_perp": (thp, Xp), "random": (r, X)}
-    aur = {k: S.auroc(Xa[te] @ u, y[te]) for k, (u, Xa) in arms.items()}
+    aur = {k: est.auroc(Xa[te] @ u, y[te]) for k, (u, Xa) in arms.items()}
     return arms, aur, te
 
 
@@ -99,15 +98,15 @@ def main():
     alphas = [float(a) for a in args.alphas.split(",")]
     seeds = [int(s) for s in args.seeds.split(",")]
 
-    tok, model = S.get_model(args.model, DEV, torch.float16)
+    tok, model = acts.get_model(args.model, DEV, torch.float16)
     dtype = next(model.parameters()).dtype
     nL = model.config.num_hidden_layers
-    layers = sorted({max(1, int(round(f * nL))) for f in C2.SEED_PLAN})
+    layers = sorted({max(1, int(round(f * nL))) for f in steering.SEED_PLAN})
     results = {}
 
     for ds in [d for d in args.datasets.split(",") if d]:
-        Xs, y = C2.get_acts(model, tok, args.model, ds, layers, args.cap)
-        pool = SC.load_pairs(ds, args.pairs, 0)
+        Xs, y = steering.get_acts(model, tok, args.model, ds, layers, args.cap)
+        pool = data.load_pairs(ds, args.pairs, 0)
         results[ds] = {}
         print(f"\n{'='*78}\n{args.model} / {ds}\n{'='*78}", flush=True)
 
@@ -126,19 +125,19 @@ def main():
 
             for sd in seeds:
                 arms, aur, te = build_arms(X, y, seed=sd)
-                pairs = C2.pairs_for_seed(pool, sd, args.pairs_per_seed)
+                pairs = steering.pairs_for_seed(pool, sd, args.pairs_per_seed)
                 for k in aurocs: aurocs[k].append(aur[k])
-                with SC.Steerer(model, L) as st:
+                with steering.Steerer(model, L) as st:
                     st.set(None, 0, DEV, dtype)
-                    base = SC.score_pairs(model, tok, pairs, args.bs)
+                    base = steering.score_pairs(model, tok, pairs, args.bs)
                     # norm-matched: every arm displaced by alpha*||delta||.
                     # Scaling each arm by its own std(X@u) gave v1 a push of
                     # sqrt(lambda_1) ~ 104 and theta_perp a tiny one -- the arms
                     # were not comparable.
-                    sc = C2.class_gap(X, y)
+                    sc = est.class_gap(X, y)
                     for name, (u, Xa) in arms.items():
                         for a in alphas:
-                            A, _ = C2.antisym(model, tok, st, u, a, sc,
+                            A, _ = steering.antisym(model, tok, st, u, a, sc,
                                               pairs, base, args.bs, dtype)
                             per_arm[name][str(a)].append(A)
                     st.set(None, 0, DEV, dtype)

@@ -23,59 +23,11 @@ Drafted with the assistance of Claude (Anthropic).
 """
 import os, json, glob, argparse
 import numpy as np
-from sklearn.covariance import LedoitWolf
+from truthlib.estimators import observables
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(REPO, "artifacts", "act_cache")
 OUT = os.path.join(REPO, "artifacts", "geometry_observables.json")
-
-
-def within_class_cov(X, y):
-    Xc = X.copy()
-    for lab in (0, 1):
-        Xc[y == lab] -= X[y == lab].mean(0)
-    return Xc
-
-
-def observables(X, y, shrink=True):
-    d = X.shape[1]
-    delta = X[y == 1].mean(0) - X[y == 0].mean(0)
-    th = delta / np.linalg.norm(delta)
-
-    Xc = within_class_cov(X, y)
-    C = np.cov(Xc, rowvar=False)
-    w, V = np.linalg.eigh(C)
-    w, V = w[::-1], V[:, ::-1]
-    v1 = V[:, 0]
-
-    PR = float((w.sum() ** 2) / (w ** 2).sum())
-
-    p = X @ th
-    p1, p0 = p[y == 1], p[y == 0]
-    d_mm = float(abs(p1.mean() - p0.mean()) /
-                 np.sqrt(0.5 * (p1.var(ddof=1) + p0.var(ddof=1))))
-
-    # optimal linear separation, shrunk inverse (raw C is singular when N < d)
-    if shrink:
-        P = LedoitWolf(assume_centered=True).fit(Xc).precision_
-        d_maha = float(np.sqrt(max(delta @ P @ delta, 0.0)))
-    else:
-        d_maha = float("nan")
-
-    return {
-        "d_model": int(d), "n": int(len(y)),
-        "PR": PR, "PR_over_d": PR / d,
-        "lambda1_over_trace": float(w[0] / w.sum()),
-        "lambda1_over_lambda2": float(w[0] / w[1]),
-        "cos_theta_v1": float(abs(th @ v1)),
-        "d_mass_mean": d_mm,
-        "d_mahalanobis": d_maha,
-        "hidden_signal_ratio": d_maha / d_mm if d_mm > 0 else float("nan"),
-        "var_along_theta": float(p.var(ddof=1)),
-        "delta_norm": float(np.linalg.norm(delta)),
-        "sqrt_trace_Sigma": float(np.sqrt(w.sum())),
-        "theta": th.astype(np.float32).tolist(),
-    }
 
 
 def main():

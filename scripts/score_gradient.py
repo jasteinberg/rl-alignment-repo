@@ -21,16 +21,12 @@ alpha in {0.5,1,2,4}, hence NOT a pure h->0 derivative).
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import os, sys, json, gc, argparse, importlib.util
+import os, sys, json, gc, argparse
 import numpy as np, torch
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
-S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
-spec2 = importlib.util.spec_from_file_location("sc", os.path.join(REPO, "scripts/steer_completions.py"))
-SC = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(SC)
-spec3 = importlib.util.spec_from_file_location("s2", os.path.join(REPO, "scripts/steer_confirm2.py"))
-S2 = importlib.util.module_from_spec(spec3); spec3.loader.exec_module(S2)
+from truthlib import acts, data, steering
+from truthlib import estimators as est
 
 ART = os.path.join(REPO, "artifacts")
 DEV = "mps"
@@ -96,17 +92,17 @@ def main():
     args = ap.parse_args()
     layers = [int(x) for x in args.layers.split(",")]
 
-    tok, model = S.get_model(args.model, DEV, torch.float16)
+    tok, model = acts.get_model(args.model, DEV, torch.float16)
     model.eval()
     for p in model.parameters():
         p.requires_grad_(False)
 
-    stmts, y = S.load_dataset(args.dataset, cap=args.cap, seed=args.seed)
+    stmts, y = data.load_dataset(args.dataset, cap=args.cap, seed=args.seed)
     print(f"extracting activations ({len(stmts)} statements)...", flush=True)
-    A = S.extract_all_layers(stmts, tok, model, DEV, 16)
+    A = acts.extract_all_layers(stmts, tok, model, DEV, 16)
 
-    pool = SC.load_pairs(args.dataset, args.pairs, 0)
-    pairs = S2.pairs_for_seed(pool, args.seed, args.pairs_per_seed)
+    pool = data.load_pairs(args.dataset, args.pairs, 0)
+    pairs = steering.pairs_for_seed(pool, args.seed, args.pairs_per_seed)
     print(f"{len(pairs)} contrastive pairs\n", flush=True)
 
     out = {"model": args.model, "dataset": args.dataset, "seed": args.seed,
@@ -114,10 +110,10 @@ def main():
 
     for L in layers:
         X = A[L].astype(np.float64)
-        tr, te = S.split_indices(y, seed=args.seed)
-        th, thw, _, _ = S2.fit_dirs(X, y, args.seed)
+        tr, te = est.split_indices(y, seed=args.seed)
+        th, thw, _, _ = steering.fit_dirs(X, y, args.seed)
         v1, e2, lam = rogue_and_gap(X, y, tr)
-        scale = S2.class_gap(X[tr], y[tr])
+        scale = est.class_gap(X[tr], y[tr])
         block = model.gpt_neox.layers[L]
 
         gs = []

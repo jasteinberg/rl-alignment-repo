@@ -23,13 +23,17 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from sklearn.covariance import LedoitWolf
-from sklearn.metrics import roc_auc_score
 
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO))
 
 from utils.env import ENV
+from truthlib.data import (MAIN_TIER, SMALL_TIER, DISTRACTOR, MAIN_CAP, SMALL_CAP,
+                           cap_for, load_dataset)
+from truthlib.estimators import (d_prime, auroc, split_indices,
+                                 evaluate_direction, mass_mean as mass_mean_direction,
+                                 fisher as whitened_direction)
+from truthlib.acts import get_model, extract_all_layers
 
 DATA = Path(ENV.GOT)
 ART = REPO / "artifacts"
@@ -38,14 +42,6 @@ CKPT = ART / "ckpt"
 # ---- configuration -------------------------------------------------------
 # Main tier capped at its smallest member (companies_true_false, N=1199) so
 # that d', transfer, and N/d are directly comparable across datasets.
-MAIN_TIER = [
-    "cities", "neg_cities", "larger_than", "smaller_than",
-    "cities_cities_conj", "cities_cities_disj",
-    "common_claim_true_false", "companies_true_false", "counterfact_true_false",
-]
-SMALL_TIER = ["sp_en_trans", "neg_sp_en_trans"]   # N=354; higher null, noisier d'
-DISTRACTOR = ["likely"]                            # plausibility decorrelated from truth
-MAIN_CAP, SMALL_CAP = 1199, 354
 
 COVER_DATASET = "counterfact_true_false"           # full size N=31964
 COVER_NS = [100, 200, 500, 1000, 2000, 5000, 10000, 20000, 31964]
@@ -55,93 +51,6 @@ MODELS = ["EleutherAI/pythia-70m", "EleutherAI/pythia-410m",
 
 N_NULL = 200        # random directions for the null
 PCA_KS = [0, 1, 2, 4, 8, 16, 32, 64]   # superposition probe
-
-
-def cap_for(name):
-    if name in SMALL_TIER:
-        return SMALL_CAP
-    return MAIN_CAP
-
-
-def load_dataset(name, cap=None, seed=0):
-    """Return (statements, labels) balanced-subsampled to `cap`."""
-    import pandas as pd
-    df = pd.read_csv(DATA / f"{name}.csv")
-    df = df[df["label"].isin([0, 1])] if df["label"].dtype != object else df
-    df = df.dropna(subset=["statement", "label"])
-    df["label"] = df["label"].astype(int)
-    if cap is not None and len(df) > cap:
-        rng = np.random.default_rng(seed)
-        per = cap // 2
-        idx = []
-        for lab in (0, 1):
-            pool = df.index[df["label"] == lab].to_numpy()
-            idx.append(rng.choice(pool, size=min(per, len(pool)), replace=False))
-        df = df.loc[np.concatenate(idx)].sample(frac=1.0, random_state=seed)
-    return df["statement"].tolist(), df["label"].to_numpy().astype(int)
-
-# ---- estimators ----------------------------------------------------------
-def d_prime(z, y):
-    """Detection-theoretic d'^2 = (m1-m0)^2 / [ (s1^2+s0^2)/2 ]; returns d'."""
-    z1, z0 = z[y == 1], z[y == 0]
-    num = (z1.mean() - z0.mean()) ** 2
-    den = 0.5 * (z1.var(ddof=1) + z0.var(ddof=1))
-    return float(np.sqrt(num / den)) if den > 0 else 0.0
-
-
-def auroc(z, y):
-    return float(roc_auc_score(y, z))
-
-
-def accuracy_midpoint(z, y):
-    """Threshold at the midpoint of the class means (the mass-mean rule)."""
-    thr = 0.5 * (z[y == 1].mean() + z[y == 0].mean())
-    pred = (z > thr).astype(int)
-    if pred.mean() and (pred == y).mean() < 0.5:
-        pred = 1 - pred          # orientation is arbitrary; take the better sign
-    return float((pred == y).mean())
-
-
-def mass_mean_direction(X, y):
-    """theta ∝ mu_1 - mu_0, unit norm."""
-    theta = X[y == 1].mean(0) - X[y == 0].mean(0)
-    n = np.linalg.norm(theta)
-    return theta / n if n > 0 else theta
-
-
-def whitened_direction(X, y):
-    """Fisher/LDA direction Sigma^{-1}(mu_1 - mu_0) with Ledoit-Wolf shrinkage.
-
-    Sigma is the *within-class* covariance: center each class by its own mean
-    so the between-class shift does not leak into the noise estimate.
-    """
-    Xc = X.copy()
-    for lab in (0, 1):
-        m = X[y == lab].mean(0)
-        Xc[y == lab] = X[y == lab] - m
-    lw = LedoitWolf(assume_centered=True).fit(Xc)
-    dmu = X[y == 1].mean(0) - X[y == 0].mean(0)
-    theta = lw.precision_ @ dmu
-    n = np.linalg.norm(theta)
-    return theta / n if n > 0 else theta
-
-
-def evaluate_direction(theta, X, y):
-    z = X @ theta
-    return {"auroc": auroc(z, y), "d_prime": d_prime(z, y),
-            "acc": accuracy_midpoint(z, y)}
-
-
-def split_indices(y, frac=0.5, seed=0):
-    """Class-stratified train/test split."""
-    rng = np.random.default_rng(seed)
-    tr, te = [], []
-    for lab in (0, 1):
-        idx = np.where(y == lab)[0]
-        rng.shuffle(idx)
-        k = int(round(frac * len(idx)))
-        tr.append(idx[:k]); te.append(idx[k:])
-    return np.concatenate(tr), np.concatenate(te)
 
 
 def fit_eval_split(X, y, kind="plain", seed=0):
@@ -247,38 +156,6 @@ def cover_n_sweep(X, y, ns, d_model, seed=0):
     return rows
 
 # ---- activations ---------------------------------------------------------
-def get_model(name, device, dtype):
-    from transformers import AutoModelForCausalLM, AutoTokenizer
-    tok = AutoTokenizer.from_pretrained(name)
-    if tok.pad_token is None:
-        tok.pad_token = tok.eos_token
-    tok.padding_side = "right"
-    model = AutoModelForCausalLM.from_pretrained(
-        name, torch_dtype=dtype, output_hidden_states=True).to(device).eval()
-    return tok, model
-
-
-@torch.no_grad()
-def extract_all_layers(statements, tok, model, device, batch_size=16):
-    """Last-token residual activations for every layer in one pass per batch.
-
-    Returns float32 array of shape (n_layers+1, N, d). Padding is right-side,
-    so the final real token is found from the attention mask.
-    """
-    chunks = []
-    for i in range(0, len(statements), batch_size):
-        enc = tok(statements[i:i + batch_size], return_tensors="pt",
-                  padding=True, truncation=True, max_length=128).to(device)
-        hs = model(**enc).hidden_states           # (n_layers+1) tensors (B,T,d)
-        last = enc["attention_mask"].sum(1) - 1   # index of final real token
-        b = torch.arange(last.shape[0], device=device)
-        batch = torch.stack([h[b, last] for h in hs])    # (L, B, d)
-        chunks.append(batch.float().cpu().numpy())
-        del hs, enc, batch
-    return np.concatenate(chunks, axis=1)
-
-
-# ---- per-(model, dataset) analysis --------------------------------------
 def ckpt_path(model, dset):
     tag = model.split("/")[-1]
     return CKPT / f"{tag}__{dset}.json"

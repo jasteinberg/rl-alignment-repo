@@ -12,12 +12,11 @@ Drafted with the assistance of Claude (Anthropic).
 """
 import sys, json, re
 import numpy as np, pandas as pd, torch, os
-import importlib.util
+from truthlib import acts
+from truthlib import estimators as est
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
-spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
-S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
 
 from utils.env import ENV
 
@@ -30,23 +29,23 @@ df["label"] = df["label"].astype(int)
 first = df["statement"].str.split().str[0].str.lower()
 df["frame"] = first
 
-tok, model = S.get_model(MODEL, dev, torch.float16)
-A = S.extract_all_layers(df["statement"].tolist(), tok, model, dev, 16)
+tok, model = acts.get_model(MODEL, dev, torch.float16)
+A = acts.extract_all_layers(df["statement"].tolist(), tok, model, dev, 16)
 X = A[LAYER].astype(np.float64); y = df["label"].to_numpy()
 print(f"N={len(y)}  d={X.shape[1]}  layer={LAYER}")
 
 def report(tag, tr, te):
-    th = S.mass_mean_direction(X[tr], y[tr])
-    if S.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
-    p = S.evaluate_direction(th, X[te], y[te])
-    thw = S.whitened_direction(X[tr], y[tr])
-    if S.auroc(X[tr] @ thw, y[tr]) < 0.5: thw = -thw
-    w = S.evaluate_direction(thw, X[te], y[te])
+    th = est.mass_mean(X[tr], y[tr])
+    if est.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
+    p = est.evaluate_direction(th, X[te], y[te])
+    thw = est.fisher(X[tr], y[tr])
+    if est.auroc(X[tr] @ thw, y[tr]) < 0.5: thw = -thw
+    w = est.evaluate_direction(thw, X[te], y[te])
     print(f"{tag:<22} plain d'={p['d_prime']:.2f} AUC={p['auroc']:.3f}   "
           f"whitened d'={w['d_prime']:.2f} AUC={w['auroc']:.3f}")
 
 # 1) random split (what the sweep does)
-tr, te = S.split_indices(y, seed=0)
+tr, te = est.split_indices(y, seed=0)
 report("random split", tr, te)
 
 # 2) frame-disjoint: first numeral disjoint between halves

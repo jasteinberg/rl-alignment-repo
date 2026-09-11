@@ -162,3 +162,18 @@ def antisym(model, tok, st, vec, alpha, scale, pairs, base, bs, dtype):
     st.set(vec, -alpha * scale, DEV, dtype)
     sm = float(np.mean(score_pairs(model, tok, pairs, bs) - base))
     return 0.5 * (sp - sm), 0.5 * (sp + sm)
+
+
+def fit_dirs(X, y, seed):
+    """Plain and whitened directions on the seed's training half, each oriented so
+    its training AUROC is at least 1/2 (moved from steer_confirm2.py)."""
+    from truthlib import estimators as est
+    tr, te = est.split_indices(y, seed=seed)
+    th = est.mass_mean(X[tr], y[tr])
+    if est.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
+    try:
+        thw = est.fisher(X[tr], y[tr])
+        if est.auroc(X[tr] @ thw, y[tr]) < 0.5: thw = -thw
+    except Exception:
+        thw = th.copy()
+    return th, thw, tr, te

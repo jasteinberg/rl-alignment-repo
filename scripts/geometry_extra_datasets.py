@@ -11,7 +11,8 @@ comparable to the cities / counterfact entries there.
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import importlib.util
+from truthlib import acts, data
+from truthlib import estimators as est
 import json
 import os
 from pathlib import Path
@@ -20,10 +21,6 @@ import numpy as np
 import torch
 
 REPO = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("s", REPO / "scripts" / "snr_sweep.py")
-S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
-gs = importlib.util.spec_from_file_location("g", REPO / "scripts" / "geometry_observables.py")
-G = importlib.util.module_from_spec(gs); gs.loader.exec_module(G)
 
 MODEL = "EleutherAI/pythia-2.8b"
 DATASETS = ["companies_true_false", "common_claim_true_false", "cities_cities_conj"]
@@ -33,14 +30,14 @@ OUT = REPO / "artifacts" / "geometry_extra_datasets.json"
 
 
 def main():
-    tok, model = S.get_model(MODEL, DEV, torch.float16)
+    tok, model = acts.get_model(MODEL, DEV, torch.float16)
     out = {}
     for ds in DATASETS:
-        st, y = S.load_dataset(ds, cap=1199, seed=0)
-        A = S.extract_all_layers(st, tok, model, DEV, 16)
+        st, y = data.load_dataset(ds, cap=1199, seed=0)
+        A = acts.extract_all_layers(st, tok, model, DEV, 16)
         out[ds] = {}
         for L in LAYERS:
-            o = G.observables(A[L].astype(np.float64), y, True); o.pop("theta")
+            o = est.observables(A[L].astype(np.float64), y, True); o.pop("theta")
             out[ds][str(L)] = o
             print(f"{ds:26s} L{L} PR={o['PR']:6.2f} lam1/tr={o['lambda1_over_trace']:.3f} "
                   f"lam1/lam2={o['lambda1_over_lambda2']:8.1f} cos(th,v1)={o['cos_theta_v1']:.3f} "

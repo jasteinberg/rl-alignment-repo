@@ -32,16 +32,14 @@ import gc
 import json
 import math
 import os
-import importlib.util
+from truthlib import acts, data
+from truthlib import estimators as est
 from pathlib import Path
 
 import numpy as np
 import torch
 
 REPO = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("s", REPO / "scripts" / "snr_sweep.py")
-S = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(S)
 
 MODEL = os.environ.get("COVER_MODEL", "EleutherAI/pythia-2.8b")
 DATASETS = ["counterfact_true_false", "cities", "larger_than", "sp_en_trans"]
@@ -68,13 +66,13 @@ def pool_stats(X, y):
 
 
 def main():
-    tok, model = S.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
+    tok, model = acts.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
     out = {"config": {"model": MODEL, "pools": POOLS, "ns": NS,
                       "n_rep": N_REP, "n_pool_rep": N_POOL_REP}, "results": {}}
     for ds in DATASETS:
         best = SWEEP["models"][MODEL]["datasets"][ds]["best_layer"]
-        stmts, y = S.load_dataset(ds, cap=CAP, seed=0)
-        A_all = S.extract_all_layers(stmts, tok, model, DEV, 16)
+        stmts, y = data.load_dataset(ds, cap=CAP, seed=0)
+        A_all = acts.extract_all_layers(stmts, tok, model, DEV, 16)
         X = A_all[best].astype(np.float64)
         print(f"[{ds}] N_total={len(y)} L={best}", flush=True)
         rows = []
@@ -96,7 +94,7 @@ def main():
                         ysh = rng.permutation(yp[idx])
                         if len(np.unique(ysh)) < 2:
                             continue
-                        th = S.mass_mean_direction(Xs, ysh)
+                        th = est.mass_mean(Xs, ysh)
                         th = th * np.linalg.norm(th) / max(np.linalg.norm(th), 1e-12)
                         # mass_mean_direction returns a unit vector; rebuild the raw gap
                         mu1 = Xs[ysh == 1].mean(0)

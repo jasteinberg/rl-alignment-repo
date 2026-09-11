@@ -31,6 +31,7 @@ import os
 
 import numpy as np
 from sklearn.covariance import LedoitWolf
+from truthlib import data
 from truthlib.estimators import (split_indices, within_class_center, d_prime,
                                  mass_mean, fisher, massive_mask)
 
@@ -97,11 +98,7 @@ def held_out(X, y, drop, seed=0, n_null=200):
 
 def statements_for(dataset, cap, seed=0):
     """Regenerate the loader's statement list so flagged rows can be read."""
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "sw", os.path.join(REPO, "scripts", "snr_sweep.py"))
-    sw = importlib.util.module_from_spec(spec); spec.loader.exec_module(sw)
-    return sw.load_dataset(dataset, cap=cap, seed=seed)
+    return data.load_dataset(dataset, cap=cap, seed=seed)
 
 
 def main():

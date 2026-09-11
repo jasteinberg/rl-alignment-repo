@@ -18,13 +18,13 @@ Controls:
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import sys, os, importlib.util
+import sys, os
 import numpy as np, pandas as pd, torch
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, REPO)
-spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
-S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
+from truthlib import acts
+from truthlib import estimators as est
 
 from utils.env import ENV
 
@@ -34,8 +34,8 @@ LAYERS = [1, 28]
 
 df = pd.read_csv(f"{D}/larger_than.csv").dropna(subset=["statement", "label"])
 df["label"] = df["label"].astype(int)
-tok, model = S.get_model(MODEL, dev, torch.float16)
-A = S.extract_all_layers(df["statement"].tolist(), tok, model, dev, 16)
+tok, model = acts.get_model(MODEL, dev, torch.float16)
+A = acts.extract_all_layers(df["statement"].tolist(), tok, model, dev, 16)
 y = df["label"].to_numpy()
 
 
@@ -54,18 +54,18 @@ def fisher(Xtr, ytr, alpha):
 
 for L in LAYERS:
     X = A[L].astype(np.float64)
-    tr, te = S.split_indices(y, seed=0)
+    tr, te = est.split_indices(y, seed=0)
     print(f"\n===== layer {L}  (N_train={len(tr)}, d={X.shape[1]}) =====")
 
     print("  -- 1. shrinkage sweep (alpha=1 is pure mass-mean) --")
     for a in (0.0, 0.01, 0.1, 0.3, 0.6, 0.9, 0.99, 1.0):
         th = fisher(X[tr], y[tr], a)
-        if S.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
-        r = S.evaluate_direction(th, X[te], y[te])
+        if est.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
+        r = est.evaluate_direction(th, X[te], y[te])
         print(f"     alpha={a:<5} held-out d'={r['d_prime']:6.2f}  AUROC={r['auroc']:.4f}")
 
     print("  -- 2. split-half: Sigma and mu from disjoint halves --")
-    a_, b_ = S.split_indices(y[tr], seed=7)
+    a_, b_ = est.split_indices(y[tr], seed=7)
     ia, ib = tr[a_], tr[b_]
     Xc = X[ia].copy()
     for lab in (0, 1): Xc[y[ia] == lab] -= X[ia][y[ia] == lab].mean(0)
@@ -73,15 +73,15 @@ for L in LAYERS:
     P = LedoitWolf(assume_centered=True).fit(Xc).precision_
     dmu = X[ib][y[ib] == 1].mean(0) - X[ib][y[ib] == 0].mean(0)
     th = P @ dmu; th /= np.linalg.norm(th)
-    if S.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
-    r = S.evaluate_direction(th, X[te], y[te])
+    if est.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
+    r = est.evaluate_direction(th, X[te], y[te])
     print(f"     held-out d'={r['d_prime']:.2f}  AUROC={r['auroc']:.4f}")
 
     print("  -- 3. whitening fit to SHUFFLED labels --")
     rng = np.random.default_rng(0)
     ysh = rng.permutation(y)
-    trs, tes = S.split_indices(ysh, seed=0)
-    thw = S.whitened_direction(X[trs], ysh[trs])
-    if S.auroc(X[trs] @ thw, ysh[trs]) < 0.5: thw = -thw
-    r = S.evaluate_direction(thw, X[tes], ysh[tes])
+    trs, tes = est.split_indices(ysh, seed=0)
+    thw = est.fisher(X[trs], ysh[trs])
+    if est.auroc(X[trs] @ thw, ysh[trs]) < 0.5: thw = -thw
+    r = est.evaluate_direction(thw, X[tes], ysh[tes])
     print(f"     held-out d'={r['d_prime']:.2f}  AUROC={r['auroc']:.4f}   (chance => 0.5)")

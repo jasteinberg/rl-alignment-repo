@@ -40,122 +40,20 @@ The notebook loads whatever cells exist via load_cells().
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import os, json, gc, glob, argparse, importlib.util
+import os, json, gc, argparse
 import numpy as np, torch
+from truthlib import acts, data, steering
+from truthlib import estimators as est
+from truthlib.steering import (SEED_PLAN, cell_path, null_path, get_acts, antisym,
+                               fit_dirs, pairs_for_seed)
+from truthlib.estimators import class_gap
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-spec = importlib.util.spec_from_file_location("s", os.path.join(REPO, "scripts/snr_sweep.py"))
-S = importlib.util.module_from_spec(spec); spec.loader.exec_module(S)
-spec2 = importlib.util.spec_from_file_location("sc", os.path.join(REPO, "scripts/steer_completions.py"))
-SC = importlib.util.module_from_spec(spec2); spec2.loader.exec_module(SC)
 
 ART = os.path.join(REPO, "artifacts")
 CKPT = os.path.join(ART, "steer_ckpt")  # class-gap alpha units
 ACTS = os.path.join(ART, "act_cache")
 DEV = "mps"
-
-SEED_PLAN = {0.25: 10, 0.375: 10, 0.5: 10, 0.625: 5, 0.75: 5, 0.875: 10}
-
-
-def tag(m): return m.split("/")[-1]
-
-
-def cell_path(model, ds, layer, seed):
-    return os.path.join(CKPT, f"{tag(model)}__{ds}__L{layer}__s{seed}.json")
-
-
-def null_path(model, ds, layer):
-    return os.path.join(CKPT, f"{tag(model)}__{ds}__L{layer}__NULL.json")
-
-
-def act_path(model, ds):
-    return os.path.join(ACTS, f"{tag(model)}__{ds}.npz")
-
-
-def get_acts(model, tok, mname, ds, layers, cap, seed=0):
-    """Cache last-token activations for the probed layers only.
-
-    Full A is (n_layers+1, N, d) and is large; we keep just the probed layers,
-    so extending the seed list later costs no forward passes at all.
-    """
-    p = act_path(mname, ds)
-    if os.path.exists(p):
-        z = np.load(p)
-        if sorted(int(k[1:]) for k in z.files if k.startswith("L")) == sorted(layers):
-            print(f"    (cached activations {os.path.basename(p)})", flush=True)
-            return {int(k[1:]): z[k] for k in z.files if k.startswith("L")}, z["y"]
-    stmts, y = S.load_dataset(ds, cap=cap, seed=seed)
-    print(f"    extracting {len(stmts)} activations...", flush=True)
-    A = S.extract_all_layers(stmts, tok, model, DEV, 16)
-    out = {L: A[L].astype(np.float32) for L in layers}
-    os.makedirs(ACTS, exist_ok=True)
-    np.savez_compressed(p, y=y, **{f"L{L}": v for L, v in out.items()})
-    del A; gc.collect()
-    return out, y
-
-
-def load_cells(art=ART):
-    """Notebook entry point: every cell on disk as a tidy list of dicts.
-
-    Robust to however many seeds happen to exist -- add more by re-running with
-    --seeds and calling this again.
-    """
-    rows = []
-    for f in sorted(glob.glob(os.path.join(art, "steer_ckpt", "*__s*.json"))):
-        r = json.load(open(f))
-        base = os.path.basename(f)[:-5].split("__")
-        r["model"], r["dataset"] = base[0], base[1]
-        rows.append(r)
-    nulls = {}
-    for f in sorted(glob.glob(os.path.join(art, "steer_ckpt", "*__NULL.json"))):
-        base = os.path.basename(f)[:-5].split("__")
-        nulls[(base[0], base[1], int(base[2][1:]))] = json.load(open(f))
-    return rows, nulls
-
-
-def antisym(model, tok, st, vec, alpha, scale, pairs, base, bs, dtype):
-    st.set(vec, +alpha * scale, DEV, dtype)
-    sp = float(np.mean(SC.score_pairs(model, tok, pairs, bs) - base))
-    st.set(vec, -alpha * scale, DEV, dtype)
-    sm = float(np.mean(SC.score_pairs(model, tok, pairs, bs) - base))
-    return 0.5 * (sp - sm), 0.5 * (sp + sm)
-
-
-def fit_dirs(X, y, seed):
-    tr, te = S.split_indices(y, seed=seed)
-    th = S.mass_mean_direction(X[tr], y[tr])
-    if S.auroc(X[tr] @ th, y[tr]) < 0.5: th = -th
-    try:
-        thw = S.whitened_direction(X[tr], y[tr])
-        if S.auroc(X[tr] @ thw, y[tr]) < 0.5: thw = -thw
-    except Exception:
-        thw = th.copy()
-    return th, thw, tr, te
-
-
-def pairs_for_seed(pool, seed, n):
-    """Stable given the seed: seed k always selects the same evaluation subset."""
-    rng = np.random.default_rng(777 + seed)
-    idx = rng.choice(len(pool), size=min(n, len(pool)), replace=False)
-    return [pool[i] for i in idx]
-
-
-def class_gap(X, y):
-    """||delta|| = || mu_1 - mu_0 ||, the distance between the class means.
-
-    This -- not std(X @ theta) -- is the right unit for a steering magnitude.
-    It is a property of the DATASET AND LAYER, not of the direction, so every
-    arm gets a norm-matched push and every layer is comparable. alpha = 1 means
-    "displace by exactly the class-mean gap": along theta that carries the
-    false-class mean onto the true-class mean.
-
-    In sigma units the same alpha meant wildly different things: on counterfact
-    alpha=8 was 90x the class separation at every layer, and on cities it ranged
-    from 71x (layer 8) to 2.5x (layer 28) -- so a "depth profile of causal
-    efficacy" was really a depth profile of how far off-manifold we pushed.
-    """
-    return float(np.linalg.norm(X[y == 1].mean(0) - X[y == 0].mean(0)))
-
 
 def run_cell(model, tok, Xl, y, pool, layer, alphas, seed, bs, dtype, n_pairs):
     X = Xl.astype(np.float64)
@@ -167,11 +65,11 @@ def run_cell(model, tok, Xl, y, pool, layer, alphas, seed, bs, dtype, n_pairs):
            "sigma_along_theta": float(np.std(X @ th)),
            "d_prime_theta": scale / float(np.std(X @ th)),
            "n_pairs": len(pairs),
-           "probe_auroc": S.auroc(X[te] @ th, y[te]),
-           "probe_auroc_whitened": S.auroc(X[te] @ thw, y[te]), "alphas": {}}
-    with SC.Steerer(model, layer) as st:
+           "probe_auroc": est.auroc(X[te] @ th, y[te]),
+           "probe_auroc_whitened": est.auroc(X[te] @ thw, y[te]), "alphas": {}}
+    with steering.Steerer(model, layer) as st:
         st.set(None, 0, DEV, dtype)
-        base = SC.score_pairs(model, tok, pairs, bs)
+        base = steering.score_pairs(model, tok, pairs, bs)
         for a in alphas:
             ap, sp_ = antisym(model, tok, st, th, a, scale, pairs, base, bs, dtype)
             aw, sw_ = antisym(model, tok, st, thw, a, scale, pairs, base, bs, dtype)
@@ -188,9 +86,9 @@ def run_null(model, tok, Xl, y, pool, layer, alphas, bs, dtype, n_pairs, n_rand)
     pairs = pairs_for_seed(pool, 0, n_pairs)
     rng = np.random.default_rng(9000 + layer * 17)
     out = {"layer": layer, "n_rand": n_rand, "alphas": {}}
-    with SC.Steerer(model, layer) as st:
+    with steering.Steerer(model, layer) as st:
         st.set(None, 0, DEV, dtype)
-        base = SC.score_pairs(model, tok, pairs, bs)
+        base = steering.score_pairs(model, tok, pairs, bs)
         for a in alphas:
             vals = []
             for _ in range(n_rand):
@@ -226,7 +124,7 @@ def main():
     os.makedirs(CKPT, exist_ok=True)
 
     for mname in [m for m in args.models.split(",") if m]:
-        tok, model = S.get_model(mname, DEV, torch.float16)
+        tok, model = acts.get_model(mname, DEV, torch.float16)
         dtype = next(model.parameters()).dtype
         nL = model.config.num_hidden_layers
         plan = {max(1, int(round(f * nL))): n for f, n in SEED_PLAN.items()}
@@ -236,7 +134,7 @@ def main():
             print(f"  [{ds}]", flush=True)
             layers = sorted(plan)
             Xs, y = get_acts(model, tok, mname, ds, layers, args.cap)
-            pool = SC.load_pairs(ds, args.pairs, 0)
+            pool = data.load_pairs(ds, args.pairs, 0)
 
             for L in layers:
                 seeds = explicit if explicit is not None else list(range(plan[L]))

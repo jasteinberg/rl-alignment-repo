@@ -18,7 +18,8 @@ Drafted with the assistance of Claude (Anthropic).
 import gc
 import json
 import os
-import importlib.util
+from truthlib import acts, data
+from truthlib import estimators as est
 from pathlib import Path
 
 import numpy as np
@@ -26,12 +27,6 @@ import torch
 from sklearn.covariance import LedoitWolf
 
 REPO = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("s", REPO / "scripts" / "snr_sweep.py")
-S = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(S)
-gspec = importlib.util.spec_from_file_location("g", REPO / "scripts" / "geometry_observables.py")
-G = importlib.util.module_from_spec(gspec)
-gspec.loader.exec_module(G)
 
 MODEL = "EleutherAI/pythia-2.8b"
 DATASETS = ["counterfact_true_false", "cities"]
@@ -44,18 +39,18 @@ OUT = REPO / "artifacts" / "check_dm_insample.json"
 def dm_insample(X, y):
     """Identical recipe to geometry_observables.observables, plus the LW intensity."""
     delta = X[y == 1].mean(0) - X[y == 0].mean(0)
-    Xc = G.within_class_cov(X, y)
+    Xc = est.within_class_center(X, y)
     lw = LedoitWolf(assume_centered=True).fit(Xc)
     dm = float(np.sqrt(max(delta @ lw.precision_ @ delta, 0.0)))
     return dm, float(lw.shrinkage_)
 
 
 def main():
-    tok, model = S.get_model(MODEL, DEV, torch.float16)
+    tok, model = acts.get_model(MODEL, DEV, torch.float16)
     out = {"config": {"model": MODEL, "layers": LAYERS, "n_shuffles": N_SHUF}, "results": {}}
     for ds in DATASETS:
-        stmts, y = S.load_dataset(ds, cap=1199, seed=0)
-        A = S.extract_all_layers(stmts, tok, model, DEV, 16)
+        stmts, y = data.load_dataset(ds, cap=1199, seed=0)
+        A = acts.extract_all_layers(stmts, tok, model, DEV, 16)
         res = {}
         rng = np.random.default_rng(0)
         for L in LAYERS:
@@ -64,7 +59,7 @@ def main():
             shuf = [dm_insample(X, rng.permutation(y)) for _ in range(N_SHUF)]
             dm_s = np.array([s[0] for s in shuf]); rho_s = np.array([s[1] for s in shuf])
             # training half only, true labels
-            tr, te = S.split_indices(y, seed=0) if hasattr(S, "split_indices") else (None, None)
+            tr, te = est.split_indices(y, seed=0)
             if tr is not None:
                 dm_half, rho_half = dm_insample(X[tr], y[tr])
                 shuf_half = [dm_insample(X[tr], rng.permutation(y[tr]))[0] for _ in range(N_SHUF)]

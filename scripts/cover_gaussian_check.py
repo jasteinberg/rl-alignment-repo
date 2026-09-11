@@ -35,7 +35,8 @@ import gc
 import json
 import math
 import os
-import importlib.util
+from truthlib import acts, data
+from truthlib import estimators as est
 from pathlib import Path
 
 import numpy as np
@@ -43,9 +44,6 @@ import torch
 from scipy.stats import norm, kurtosis
 
 REPO = Path(__file__).resolve().parent.parent
-spec = importlib.util.spec_from_file_location("s", REPO / "scripts" / "snr_sweep.py")
-S = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(S)
 
 MODEL = os.environ.get("COVER_MODEL", "EleutherAI/pythia-2.8b")
 DATASETS = ["counterfact_true_false", "cities", "larger_than", "sp_en_trans"]
@@ -71,26 +69,26 @@ def one_draw(X, y, rng, N):
     ysh = rng.permutation(y[idx])
     if len(np.unique(ysh)) < 2:
         return None
-    th = S.mass_mean_direction(Xs, ysh)
+    th = est.mass_mean(Xs, ysh)
     z = Xs @ th
     z1, z0 = z[ysh == 1], z[ysh == 0]
     # pooled within-class sd of the projection
     sp = math.sqrt(0.5 * (z1.var(ddof=1) + z0.var(ddof=1)))
     dprime = float((z1.mean() - z0.mean()) / sp) if sp > 0 else float("nan")
-    auroc = float(S.evaluate_direction(th, Xs, ysh)["auroc"])
+    auroc = float(est.evaluate_direction(th, Xs, ysh)["auroc"])
     zc = np.concatenate([z1 - z1.mean(), z0 - z0.mean()])
     return dprime, auroc, float(kurtosis(zc, fisher=True))
 
 
 def main():
-    tok, model = S.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
+    tok, model = acts.get_model(MODEL, DEV, torch.float16 if DEV == "mps" else torch.float32)
     out = {"config": {"model": MODEL, "ns": NS, "n_rep": N_REP,
                       "C_predicted": 1.0 / math.sqrt(math.pi)},
            "results": {}}
     for ds in DATASETS:
         best = SWEEP["models"][MODEL]["datasets"][ds]["best_layer"]
-        stmts, y = S.load_dataset(ds, cap=CAP, seed=0)
-        A = S.extract_all_layers(stmts, tok, model, DEV, 16)
+        stmts, y = data.load_dataset(ds, cap=CAP, seed=0)
+        A = acts.extract_all_layers(stmts, tok, model, DEV, 16)
         X = A[best].astype(np.float64)
         PR, lam = pr_of(X, y)
         print(f"[{ds}] N_total={len(y)} L={best} PR={PR:.1f}", flush=True)
