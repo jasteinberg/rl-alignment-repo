@@ -30,36 +30,12 @@ import os
 
 import numpy as np
 from sklearn.covariance import LedoitWolf
+from truthlib.estimators import split_indices, within_class_center, d_prime
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(REPO, "artifacts", "act_cache")
 OUT = os.path.join(REPO, "artifacts", "shrinkage_cv.json")
 GRID = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.3, 0.6, 0.9]
-
-
-def split_indices(y, frac=0.5, seed=0):
-    """Identical to snr_sweep.split_indices -- the post's outer split."""
-    rng = np.random.default_rng(seed)
-    tr, te = [], []
-    for lab in (0, 1):
-        idx = np.where(y == lab)[0]
-        rng.shuffle(idx)
-        k = int(round(frac * len(idx)))
-        tr.append(idx[:k]); te.append(idx[k:])
-    return np.concatenate(tr), np.concatenate(te)
-
-
-def within_class_center(X, y):
-    Xc = X.copy()
-    for lab in (0, 1):
-        Xc[y == lab] = X[y == lab] - X[y == lab].mean(0)
-    return Xc
-
-
-def d_prime(z, y):
-    a, b = z[y == 1], z[y == 0]
-    return float(abs(a.mean() - b.mean()) /
-                 np.sqrt(0.5 * (a.var(ddof=1) + b.var(ddof=1))))
 
 
 def eig_fit(X, y):
