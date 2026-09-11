@@ -1,0 +1,34 @@
+{
+ "config": {
+  "model": "EleutherAI/pythia-2.8b",
+  "template": "{stmt} This statement is:",
+  "targets": [
+   " true",
+   " false"
+  ],
+  "cap": 1199,
+  "seed": 0,
+  "dtype": "float16",
+  "device": "mps"
+ },
+ "results": {
+  "cities": {
+   "n": 1198,
+   "auroc": 0.7785945412638202,
+   "mean_score_true": 0.9408845463658813,
+   "mean_score_false": 0.41559500248483905
+  },
+  "common_claim_true_false": {
+   "n": 1198,
+   "auroc": 0.5671430681631322,
+   "mean_score_true": 1.1492472590508565,
+   "mean_score_false": 0.9344496695147532
+  },
+  "counterfact_true_false": {
+   "n": 1198,
+   "auroc": 0.5245846583482209,
+   "mean_score_true": 0.9486273501273587,
+   "mean_score_false": 0.8825581746427762
+  }
+ }
+}
