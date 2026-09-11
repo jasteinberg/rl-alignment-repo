@@ -20,9 +20,8 @@ rl-alignment-repo/
 │                 #   toy MDP + tabular control, PPO (clipped, trust region),
 │                 #   Bradley-Terry reward model, training loop,
 │                 #   linear probing, calibration (ECE)
-├── scripts/      # Truth-direction SNR study: fetch/generate true-false
-│                 #   statement data and measure the signal-to-noise ratio
-│                 #   of linear "truth directions" across models and datasets
+├── scripts/      # Truth-directions study: the scripts and shared library
+│                 #   (truthlib/) behind the post
 ├── notebooks/    # Worked notebooks on the utils/ machinery:
 │                 #   tabular control (SARSA vs Q), policy gradient (REINFORCE)
 └── docs/         # Reference + full-derivation companions to the notebooks
@@ -32,10 +31,7 @@ rl-alignment-repo/
   `train.py`, `probing.py`, `calibration.py`), each written to stand alone and
   run on a laptop; paths resolve from the repo root so the code runs wherever
   it's checked out.
-- **`scripts/`** — geometry-of-truth probing: `make_truth_data.py` builds
-  self-contained true/false datasets, `fetch_geometry_of_truth.py` pulls the
-  Marks & Tegmark (2023) sets, and `snr_grid.py` / `truth_direction_snr.py`
-  compute the truth-direction SNR across models and datasets.
+- **`scripts/`** — the truth-directions study behind [Truth Directions: Signal-to-Noise and Geometry of Recoverability](https://jasteinberg.github.io/blog/2026/truth-directions-snr/). Every number in the post traces to a script here and an artifact in `artifacts/`. The post's methods appendix gives the claim → script → artifact table. Shared code lives in `scripts/truthlib/`. `estimators.py` (NumPy and scikit-learn only: d′, AUROC, the mass-mean and Fisher directions, within-class spectra, the massive-coordinate rule), `data.py` (the Marks & Tegmark sets and the contrastive completion pairs), `acts.py` (model loading and activation extraction) and `steering.py` (the residual-stream hook, the behavioral score, and the steering bookkeeping). `fetch_geometry_of_truth.py` pulls the datasets. Run scripts from the repo root as `python scripts/<name>.py`. Drivers that load a model expect Apple-silicon MPS, and the analyses that read `artifacts/act_cache/` need that cache, which is not committed.
 - **`notebooks/`** — worked notebooks that exercise the `utils/` code end to end.
   So far: `tabular_control/` — SARSA vs Q-learning on cliff-walking as a properly
   controlled experiment (named RNG streams, common random numbers, the paired
@@ -54,4 +50,3 @@ Further worked notebooks built on the `utils/` machinery:
 - **RLHF pipeline** — full pipeline, KL penalties, reward hacking
 - **scalable oversight** — weak-to-strong generalization
 - **honesty (empirical)** — calibration and sycophancy
-- **truth directions** — probing write-up with the SNR figures
