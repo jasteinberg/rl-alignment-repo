@@ -31,56 +31,12 @@ import os
 
 import numpy as np
 from sklearn.covariance import LedoitWolf
+from truthlib.estimators import split_indices, within_class_center, d_prime, fisher, massive_mask
 
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CACHE = os.path.join(REPO, "artifacts", "act_cache")
 OUT = os.path.join(REPO, "artifacts", "shrinkage_sweep.json")
 GRID = [1e-4, 3e-4, 1e-3, 3e-3, 1e-2, 3e-2, 0.1, 0.3, 0.6, 0.9]
-
-
-def split_indices(y, frac=0.5, seed=0):
-    rng = np.random.default_rng(seed)
-    tr, te = [], []
-    for lab in (0, 1):
-        idx = np.where(y == lab)[0]
-        rng.shuffle(idx)
-        k = int(round(frac * len(idx)))
-        tr.append(idx[:k]); te.append(idx[k:])
-    return np.concatenate(tr), np.concatenate(te)
-
-
-def within_class_center(X, y):
-    Xc = X.copy()
-    for lab in (0, 1):
-        Xc[y == lab] = X[y == lab] - X[y == lab].mean(0)
-    return Xc
-
-
-def d_prime(z, y):
-    a, b = z[y == 1], z[y == 0]
-    return float(abs(a.mean() - b.mean()) /
-                 np.sqrt(0.5 * (a.var(ddof=1) + b.var(ddof=1))))
-
-
-def fisher_at_rho(Xtr, ytr, rho):
-    Xc = within_class_center(Xtr, ytr)
-    C = (Xc.T @ Xc) / len(ytr)
-    mu = np.trace(C) / C.shape[0]
-    S = (1.0 - rho) * C + rho * mu * np.eye(C.shape[0])
-    dlt = Xtr[ytr == 1].mean(0) - Xtr[ytr == 0].mean(0)
-    t = np.linalg.solve(S, dlt)
-    return t / np.linalg.norm(t)
-
-
-def droppers(X, mag=100.0, rel=100.0, frac=0.5):
-    """Same coordinate-first rule as outlier_check.py."""
-    med_all = float(np.median(np.abs(X)))
-    med_j = np.median(X, axis=0)
-    massive = (np.abs(med_j) > mag) & (np.abs(med_j) > rel * med_all)
-    if not massive.any():
-        return np.zeros(len(X), bool)
-    return (np.abs(X[:, massive] - med_j[massive]) >
-            frac * np.abs(med_j[massive])).any(1)
 
 
 def main():
@@ -112,14 +68,14 @@ def main():
                 t = -t
             return d_prime(Xte @ t, yte)
 
-        d_lw = score(fisher_at_rho(Xtr, ytr, rho_lw))
+        d_lw = score(fisher(Xtr, ytr, rho=rho_lw))
 
         # reference: the eleven removed from train only, at LW's own rho there
-        keep = ~droppers(Xtr)
+        keep = ~massive_mask(Xtr)[0]
         Xc2, yc2 = Xtr[keep], ytr[keep]
         rho_c = float(LedoitWolf(assume_centered=True)
                       .fit(within_class_center(Xc2, yc2)).shrinkage_)
-        tc = fisher_at_rho(Xc2, yc2, rho_c)
+        tc = fisher(Xc2, yc2, rho=rho_c)
         if (Xc2 @ tc)[yc2 == 1].mean() < (Xc2 @ tc)[yc2 == 0].mean():
             tc = -tc
         d_clean = d_prime(Xte @ tc, yte)
@@ -128,7 +84,7 @@ def main():
                "rho_LW_clean": rho_c, "d_F_clean_train": d_clean, "sweep": {}}
         vals = []
         for rho in GRID:
-            v = score(fisher_at_rho(Xtr, ytr, rho))
+            v = score(fisher(Xtr, ytr, rho=rho))
             row["sweep"][str(rho)] = v
             vals.append(v)
         results[str(L)] = row
