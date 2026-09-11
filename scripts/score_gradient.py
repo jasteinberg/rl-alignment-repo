@@ -3,12 +3,12 @@
 Measures g = <sum_t grad_{x_t} ell>, the mean gradient of the behavioural score
 with respect to the layer-L residual stream, summed over token positions.
 
-Why the position sum: the steering hook (steer_completions.Steerer) adds the
+Why the position sum: the steering hook (truthlib.steering.Steerer) adds the
 same vector at EVERY position, so the linear response of the score to a push
 along w is  d(ell)/dh = c * (w . sum_t grad_{x_t} ell).  Differentiating only
 the final token would not be the quantity the steering arms measure.
 
-ell is taken from steer_completions.score_pairs by construction: same
+ell is taken from truthlib.steering.score_pairs by construction: same
 contrastive pairs, same tokenisation, same summation over completion tokens,
 same pool/seed selection. The score is a DIFFERENCE of two forward passes over
 different sequences, so the gradient is likewise the difference of the two
