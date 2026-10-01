@@ -20,12 +20,12 @@ Usage:
     from utils.toy_mdp import GridWorldEnv, TabularPolicy, reinforce
 """
 
+from typing import Callable, List, Optional, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from typing import Tuple, Optional, List, Callable
-
 
 # ── k-armed Bandit ────────────────────────────────────────────────────────────
 

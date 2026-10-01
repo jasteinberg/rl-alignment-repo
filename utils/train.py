@@ -8,11 +8,11 @@ Usage:
     from utils.train import plot_history, smooth
 """
 
-import torch
-import matplotlib.pyplot as plt
-import numpy as np
 from typing import Dict, List, Optional, Union
 
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 
 # ── Device ────────────────────────────────────────────────────────────────────
 

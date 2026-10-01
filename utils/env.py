@@ -10,8 +10,9 @@ Usage:
 """
 
 import os
-import torch
 from dataclasses import dataclass
+
+import torch
 
 # Repo root resolved from this file's location, so paths are correct
 # wherever the repo is checked out (no hardcoded user paths).

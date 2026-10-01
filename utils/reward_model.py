@@ -10,13 +10,13 @@ Usage:
     from utils.reward_model import BradleyTerry, PreferenceDataset, train_rm
 """
 
+from typing import List, Tuple
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.utils.data import Dataset, DataLoader
-from typing import List, Tuple
-import numpy as np
-
+from torch.utils.data import DataLoader, Dataset
 
 # ── Bradley-Terry model ───────────────────────────────────────────────────────
 

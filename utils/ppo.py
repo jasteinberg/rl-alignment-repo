@@ -12,12 +12,12 @@ Usage:
     from utils.ppo import NeuralPolicy, NeuralValue, ppo
 """
 
+from typing import Dict, List
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from typing import List, Dict
-
 
 # ── Neural policy (MLP) ───────────────────────────────────────────────────────
 

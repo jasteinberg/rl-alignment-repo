@@ -7,10 +7,11 @@ Usage:
     from utils.calibration import ece, reliability_diagram, temperature_scale
 """
 
-import torch
-import numpy as np
-import matplotlib.pyplot as plt
 from typing import Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
+import torch
 
 
 def ece(probs: np.ndarray, labels: np.ndarray, n_bins: int = 10) -> float:

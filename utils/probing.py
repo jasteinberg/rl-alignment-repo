@@ -11,6 +11,7 @@ GPT-2 / Pythia-scale models plus linear algebra on [N, d_model] arrays.
 Scaffolded with assistance from Claude (Anthropic).
 """
 from __future__ import annotations
+
 import os
 from typing import Optional, Sequence
 

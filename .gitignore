@@ -2,6 +2,7 @@ __pycache__/
 *.pyc
 .ipynb_checkpoints/
 *.log
+logs_*.txt
 .DS_Store
 *.npz
 *.pt
@@ -14,8 +15,15 @@ next-post.md
 
 # parked: part-2 and burial artifacts
 # Provenance and the commit message for restoring these: writing/notes/parked-part2-artifacts.md
-artifacts/steer_g_arm_counterfact_L28*.json
+artifacts/steer_g_arm_*.json
+artifacts/score_gradient_*_seed*.json
 artifacts/olmo_checkpoint_sweep.json
+
+# intermediate state, not published results: the sweep's per-cell checkpoints
+# (the post cites snr_sweep.json) and figure output (figures live in the website
+# repo and ~/writing/figures; this repo has never tracked any)
+artifacts/ckpt/
+/figures/
 
 # retired July-era scripts: their untracked outputs (scripts removed from the tip)
 artifacts/check_mahalanobis.json

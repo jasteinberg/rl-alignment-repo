@@ -2,7 +2,9 @@
 Source: https://github.com/saprmarks/geometry-of-truth  (datasets/, main branch).
 A reproducible substitute for committing the CSVs. Run from any env (stdlib only).
 Scaffolded with assistance from Claude (Anthropic)."""
-import os, urllib.request
+import os
+import urllib.request
+
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "geometry_of_truth")
 BASE = "https://raw.githubusercontent.com/saprmarks/geometry-of-truth/main/datasets"
 FILES = ["cities.csv", "neg_cities.csv", "larger_than.csv", "smaller_than.csv",

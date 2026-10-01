@@ -7,16 +7,14 @@ Moved verbatim from snr_sweep.py (tiers, caps, load_dataset) and steer_completio
 
 Drafted with the assistance of Claude (Anthropic).
 """
-import sys
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
+from ..env import ENV
+
 REPO = Path(__file__).resolve().parents[2]
-if str(REPO) not in sys.path:
-    sys.path.insert(0, str(REPO))
-from utils.env import ENV
 
 DATA = Path(ENV.GOT)
 

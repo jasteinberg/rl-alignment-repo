@@ -34,15 +34,22 @@ def within_class_center(X, y):
     return Xc
 
 
-def within_class_cov(X, y, ddof=0):
+def within_class_cov(X, y, ddof=0, class_sorted: bool = False):
     """Within-class covariance C-hat.
 
     ddof=0 divides by N, the post's definition and the Ledoit-Wolf convention.
     ddof=1 is np.cov, used by geometry_observables, check_rogue_dimension and
     the cover_* scripts; kept so those artifacts reproduce exactly. Ratios
     (lambda1/tr, lambda1/lambda2, PR) and eigenvectors are identical under both.
+
+    class_sorted=True stacks the centred class-0 rows above the class-1 rows
+    before summing, as the cover_* scripts do. Same matrix, different summation
+    order, so it differs in the last bits; kept for exact reproduction.
     """
-    Xc = within_class_center(X, y)
+    if class_sorted:
+        Xc = np.vstack([X[y == c] - X[y == c].mean(0) for c in (0, 1)])
+    else:
+        Xc = within_class_center(X, y)
     if ddof == 1:
         return np.cov(Xc, rowvar=False)
     return (Xc.T @ Xc) / len(y)
@@ -129,6 +136,29 @@ def participation_ratio(lam):
     return float(tr ** 2 / (lam ** 2).sum())
 
 
+def eigh_desc(C: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """Eigenvalues and eigenvectors of a symmetric matrix, largest first, unclipped."""
+    w, V = np.linalg.eigh(C)
+    return w[::-1], V[:, ::-1]
+
+
+def eigvals_desc(C: np.ndarray) -> np.ndarray:
+    """Eigenvalues only, largest first, clipped at 0 (round-off leaves the null
+    space slightly negative when N < d)."""
+    return np.clip(np.linalg.eigvalsh(C)[::-1], 0.0, None)
+
+
+def eig_ratio(lam: np.ndarray) -> float:
+    """lambda1 / lambda2 of a descending spectrum; inf when lambda2 vanishes."""
+    return float(lam[0] / lam[1]) if lam[1] > 0 else float("inf")
+
+
+def shrunk_spectrum(lam: np.ndarray, rho: float, mu: float) -> np.ndarray:
+    """Spectrum of (1 - rho) C + rho mu I: same eigenvectors, each eigenvalue
+    pulled toward mu = tr C / d."""
+    return (1.0 - rho) * lam + rho * mu
+
+
 def chi_origin(alphas, values):
     """Steering susceptibility: least-squares slope of A against h through 0."""
     a = np.array(alphas, dtype=float)
@@ -163,16 +193,13 @@ def observables(X, y, shrink=True):
 
     Xc = within_class_center(X, y)
     C = np.cov(Xc, rowvar=False)
-    w, V = np.linalg.eigh(C)
-    w, V = w[::-1], V[:, ::-1]
+    w, V = eigh_desc(C)
     v1 = V[:, 0]
 
-    PR = float((w.sum() ** 2) / (w ** 2).sum())
+    PR = participation_ratio(w)
 
     p = X @ th
-    p1, p0 = p[y == 1], p[y == 0]
-    d_mm = float(abs(p1.mean() - p0.mean()) /
-                 np.sqrt(0.5 * (p1.var(ddof=1) + p0.var(ddof=1))))
+    d_mm = d_prime(p, y)
 
     # optimal linear separation, shrunk inverse (raw C is singular when N < d)
     if shrink:
@@ -195,3 +222,33 @@ def observables(X, y, shrink=True):
         "sqrt_trace_Sigma": float(np.sqrt(w.sum())),
         "theta": th.astype(np.float32).tolist(),
     }
+
+
+# ---- gradient geometry (moved from score_gradient / regen_gradient_ci) ---------------
+def rogue_and_gap(X, y, tr):
+    """v1 (leading eigenvector of the within-class covariance) and e2."""
+    Xtr = X[tr]; ytr = y[tr]
+    Xc = np.vstack([Xtr[ytr == k] - Xtr[ytr == k].mean(0) for k in (0, 1)])
+    C = Xc.T @ Xc / len(Xc)
+    w, V = np.linalg.eigh(C)
+    v1 = V[:, -1]
+    lam = w[::-1]
+    delta = Xtr[ytr == 1].mean(0) - Xtr[ytr == 0].mean(0)
+    d_perp = delta - (v1 @ delta) * v1
+    e2 = d_perp / np.linalg.norm(d_perp)
+    return v1, e2, lam
+
+
+def cosine(a, b):
+    """cos(a, b) as a float."""
+    return float(a @ b / (np.linalg.norm(a) * np.linalg.norm(b)))
+
+
+def cos_bootstrap_interval(G, w, rng, B=10000):
+    """[point, lo, hi] for cosine(mean_i g_i, w): B bootstrap resamples over pairs, 95% percentile interval."""
+    n = len(G)
+    point = cosine(G.mean(0), w)
+    idx = rng.integers(0, n, size=(B, n))
+    draws = np.array([cosine(G[i].mean(0), w) for i in idx])
+    lo, hi = np.percentile(draws, [2.5, 97.5])
+    return [point, float(lo), float(hi)]
